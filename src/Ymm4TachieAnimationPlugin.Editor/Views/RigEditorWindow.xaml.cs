@@ -36,8 +36,10 @@ public partial class RigEditorWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Title = "PSDファイルを選択",
-            Filter = "Photoshop PSD File (*.psd)|*.psd|すべてのファイル (*.*)|*.*",
+            Title = "PSDまたは画像ファイルを選択",
+            Filter = "PSD / 画像ファイル (*.psd;*.psb;*.png)|*.psd;*.psb;*.PSD;*.PSB;*.png;*.PNG|すべてのファイル (*.*)|*.*",
+            FilterIndex = 1,
+            Multiselect = false,
         };
         if (dialog.ShowDialog(this) == true) ViewModel.ImportFileOrDirectory(dialog.FileName);
     }
