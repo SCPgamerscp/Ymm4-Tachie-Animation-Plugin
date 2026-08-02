@@ -16,10 +16,11 @@ public static class PsdImporter
         public int Left { get; set; }
         public int Bottom { get; set; }
         public int Right { get; set; }
-        public int Width => Right - Left;
-        public int Height => Bottom - Top;
+        public int Width => Math.Max(0, Right - Left);
+        public int Height => Math.Max(0, Bottom - Top);
         public bool IsVisible { get; set; } = true;
-        public byte[] PixelData { get; set; } = []; // BGRA32 byte array (Width * Height * 4)
+        public bool IsFolder { get; set; } = false;
+        public byte[] PixelData { get; set; } = []; // BGRA32 byte array
     }
 
     public class PsdDocument
@@ -54,7 +55,7 @@ public static class PsdImporter
         for (int i = 0; i < doc.Layers.Count; i++)
         {
             var layer = doc.Layers[i];
-            if (layer.Width <= 0 || layer.Height <= 0 || layer.PixelData.Length == 0)
+            if (layer.IsFolder || layer.Width <= 0 || layer.Height <= 0 || layer.PixelData.Length == 0)
                 continue;
 
             var safeName = SanitizeFileName(layer.Name);
@@ -158,8 +159,9 @@ public static class PsdImporter
         var layerInfoLen = ReadUInt32BE(reader);
         if (layerInfoLen == 0) return doc;
 
+        var layerInfoEnd = reader.BaseStream.Position + layerInfoLen;
+
         var layerCount = ReadInt16BE(reader);
-        bool hasMergedAlpha = layerCount < 0;
         layerCount = Math.Abs(layerCount);
 
         var layerRecords = new List<LayerRecordHeader>();
@@ -205,6 +207,8 @@ public static class PsdImporter
             var pad = (4 - (totalNameLen % 4)) % 4;
             reader.BaseStream.Position += pad;
 
+            bool isFolder = false;
+
             while (reader.BaseStream.Position < extraEnd)
             {
                 if (reader.BaseStream.Position + 12 > extraEnd) break;
@@ -227,6 +231,11 @@ public static class PsdImporter
                         layerName = Encoding.BigEndianUnicode.GetString(uBytes).TrimEnd('\0');
                     }
                 }
+                else if (addKey == "lsct") // Section divider (folder)
+                {
+                    var type = ReadInt32BE(reader);
+                    if (type is 1 or 2) isFolder = true; // 1 = open folder, 2 = closed folder
+                }
 
                 reader.BaseStream.Position = Math.Min(addEnd, extraEnd);
             }
@@ -241,14 +250,16 @@ public static class PsdImporter
                 Right = right,
                 Name = layerName,
                 IsVisible = isVisible,
+                IsFolder = isFolder,
                 Channels = channelInfos,
             });
         }
 
+        // Read Channel Image Data for each layer safely
         foreach (var rec in layerRecords)
         {
-            var w = rec.Right - rec.Left;
-            var h = rec.Bottom - rec.Top;
+            var w = Math.Max(0, rec.Right - rec.Left);
+            var h = Math.Max(0, rec.Bottom - rec.Top);
 
             var rData = new byte[w * h];
             var gData = new byte[w * h];
@@ -258,12 +269,23 @@ public static class PsdImporter
 
             foreach (var ch in rec.Channels)
             {
+                var chStartPos = reader.BaseStream.Position;
                 var chData = ReadChannelImageData(reader, w, h, ch.Length);
-                if (ch.Id == 0 && rData.Length == chData.Length) Array.Copy(chData, rData, chData.Length);
-                else if (ch.Id == 1 && gData.Length == chData.Length) Array.Copy(chData, gData, chData.Length);
-                else if (ch.Id == 2 && bData.Length == chData.Length) Array.Copy(chData, bData, chData.Length);
-                else if (ch.Id == -1 && aData.Length == chData.Length) Array.Copy(chData, aData, chData.Length);
+
+                if (w > 0 && h > 0)
+                {
+                    if (ch.Id == 0 && rData.Length == chData.Length) Array.Copy(chData, rData, chData.Length);
+                    else if (ch.Id == 1 && gData.Length == chData.Length) Array.Copy(chData, gData, chData.Length);
+                    else if (ch.Id == 2 && bData.Length == chData.Length) Array.Copy(chData, bData, chData.Length);
+                    else if (ch.Id == -1 && aData.Length == chData.Length) Array.Copy(chData, aData, chData.Length);
+                }
+
+                // Ensure exact channel stream position
+                reader.BaseStream.Position = chStartPos + ch.Length;
             }
+
+            if (rec.IsFolder || w <= 0 || h <= 0)
+                continue;
 
             var bgra = new byte[w * h * 4];
             for (int i = 0; i < w * h; i++)
@@ -282,6 +304,7 @@ public static class PsdImporter
                 Bottom = rec.Bottom,
                 Right = rec.Right,
                 IsVisible = rec.IsVisible,
+                IsFolder = rec.IsFolder,
                 PixelData = bgra,
             });
         }
@@ -298,16 +321,17 @@ public static class PsdImporter
 
         var result = new byte[width * height];
 
-        if (comp == 0)
+        if (comp == 0) // Raw
         {
             var readBytes = reader.ReadBytes(Math.Min(result.Length, (int)length - 2));
             Array.Copy(readBytes, result, Math.Min(readBytes.Length, result.Length));
         }
-        else if (comp == 1)
+        else if (comp == 1) // RLE PackBits
         {
             var rleRowLengths = new ushort[height];
             for (int i = 0; i < height; i++)
             {
+                if (reader.BaseStream.Position + 2 > startPos + length) break;
                 rleRowLengths[i] = ReadUInt16BE(reader);
             }
 
@@ -315,7 +339,7 @@ public static class PsdImporter
             for (int r = 0; r < height; r++)
             {
                 var rowLen = rleRowLengths[r];
-                var rowEnd = reader.BaseStream.Position + rowLen;
+                var rowEnd = Math.Min(reader.BaseStream.Position + rowLen, startPos + length);
 
                 int rowRead = 0;
                 while (reader.BaseStream.Position < rowEnd && rowRead < width)
@@ -324,7 +348,7 @@ public static class PsdImporter
                     if (n >= 0)
                     {
                         int count = n + 1;
-                        for (int k = 0; k < count && rowRead < width; k++)
+                        for (int k = 0; k < count && rowRead < width && reader.BaseStream.Position < rowEnd; k++)
                         {
                             result[destOffset + rowRead++] = reader.ReadByte();
                         }
@@ -332,6 +356,7 @@ public static class PsdImporter
                     else if (n > -128)
                     {
                         int count = 1 - n;
+                        if (reader.BaseStream.Position >= rowEnd) break;
                         byte b = reader.ReadByte();
                         for (int k = 0; k < count && rowRead < width; k++)
                         {
@@ -344,35 +369,31 @@ public static class PsdImporter
             }
         }
 
-        reader.BaseStream.Position = startPos + length;
         return result;
     }
 
     private static void SaveLayerAsPng(PsdLayer layer, string outputPath)
     {
         using var fs = File.Create(outputPath);
-        // Header
         fs.Write([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
 
-        // IHDR Chunk
         var ihdr = new byte[13];
         BinaryPrimitives.WriteInt32BigEndian(ihdr.AsSpan(0, 4), layer.Width);
         BinaryPrimitives.WriteInt32BigEndian(ihdr.AsSpan(4, 4), layer.Height);
-        ihdr[8] = 8; // Bit depth
-        ihdr[9] = 6; // Color type (RGBA)
-        ihdr[10] = 0; // Compression
-        ihdr[11] = 0; // Filter
-        ihdr[12] = 0; // Interlace
+        ihdr[8] = 8;
+        ihdr[9] = 6;
+        ihdr[10] = 0;
+        ihdr[11] = 0;
+        ihdr[12] = 0;
         WritePngChunk(fs, "IHDR", ihdr);
 
-        // IDAT Chunk (Raw Scanlines converted BGRA -> RGBA + ZLib compressed)
         var scanlineLen = 1 + (layer.Width * 4);
         var rawData = new byte[scanlineLen * layer.Height];
 
         for (int y = 0; y < layer.Height; y++)
         {
             var rowStart = y * scanlineLen;
-            rawData[rowStart] = 0; // Filter None
+            rawData[rowStart] = 0;
 
             var srcPixelStart = y * layer.Width * 4;
             for (int x = 0; x < layer.Width; x++)
@@ -399,7 +420,6 @@ public static class PsdImporter
             WritePngChunk(fs, "IDAT", compressedStream.ToArray());
         }
 
-        // IEND Chunk
         WritePngChunk(fs, "IEND", Array.Empty<byte>());
     }
 
@@ -470,6 +490,7 @@ public static class PsdImporter
         public int Right { get; set; }
         public string Name { get; set; } = string.Empty;
         public bool IsVisible { get; set; }
+        public bool IsFolder { get; set; }
         public List<ChannelInfo> Channels { get; set; } = [];
     }
 
