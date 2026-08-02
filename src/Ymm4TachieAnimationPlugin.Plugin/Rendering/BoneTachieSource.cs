@@ -26,6 +26,7 @@ internal sealed class BoneTachieSource : ITachieSource
     private RigEvaluator? evaluator;
     private RuntimePoseController? runtimeController;
     private MeshRenderPacketBuilder? packetBuilder;
+    private string? rawDirectoryPath;
     private string? loadedDirectory;
     private string? loadedMotion;
 
@@ -54,7 +55,7 @@ internal sealed class BoneTachieSource : ITachieSource
         var character = characterParameter as BoneCharacterParameter;
         var item = itemParameter as BoneItemParameter;
         var face = faceParameter as BoneFaceParameter;
-        if (character?.DirectoryPath != loadedDirectory || item?.MotionName != loadedMotion)
+        if (character?.DirectoryPath != rawDirectoryPath || item?.MotionName != loadedMotion)
             Load(character?.DirectoryPath, item?.MotionName);
 
         if (rig is null || evaluator is null)
@@ -88,6 +89,7 @@ internal sealed class BoneTachieSource : ITachieSource
 
     private void Load(string? directory, string? motionName)
     {
+        rawDirectoryPath = directory;
         loadedDirectory = directory;
         loadedMotion = motionName;
         rig = null;
