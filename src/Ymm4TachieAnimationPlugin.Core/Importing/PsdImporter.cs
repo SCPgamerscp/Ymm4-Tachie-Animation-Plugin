@@ -119,6 +119,9 @@ public static class PsdImporter
 
         rig.Validate();
 
+        var rigJsonPath = Path.Combine(outputDirectory, "rig.json");
+        File.WriteAllText(rigJsonPath, Ymm4TachieAnimationPlugin.Core.Serialization.RigSerializer.SerializeRig(rig));
+
         return rig;
     }
 

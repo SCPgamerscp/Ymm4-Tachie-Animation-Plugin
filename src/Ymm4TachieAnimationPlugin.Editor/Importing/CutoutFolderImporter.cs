@@ -63,6 +63,8 @@ public static class CutoutFolderImporter
             Parts = parts,
         };
         rig.Validate();
+        var rigJsonPath = Path.Combine(fullDirectory, "rig.json");
+        File.WriteAllText(rigJsonPath, Ymm4TachieAnimationPlugin.Core.Serialization.RigSerializer.SerializeRig(rig));
         return rig;
     }
 

@@ -5,6 +5,7 @@ using YukkuriMovieMaker.Commons;
 using YukkuriMovieMaker.Plugin;
 using YukkuriMovieMaker.Plugin.Tachie;
 using Ymm4TachieAnimationPlugin.Core.Animation;
+using Ymm4TachieAnimationPlugin.Core.Importing;
 using Ymm4TachieAnimationPlugin.Core.Model;
 using Ymm4TachieAnimationPlugin.Core.Rendering;
 using Ymm4TachieAnimationPlugin.Core.Runtime;
@@ -96,6 +97,32 @@ internal sealed class BoneTachieSource : ITachieSource
         packetBuilder = null;
 
         if (string.IsNullOrWhiteSpace(directory)) return;
+
+        // Auto-handle PSD file path or directory containing PSD file if rig.json does not exist
+        if (File.Exists(directory) && Path.GetExtension(directory).Equals(".psd", StringComparison.OrdinalIgnoreCase))
+        {
+            var psdFile = directory;
+            directory = Path.GetDirectoryName(directory) ?? directory;
+            loadedDirectory = directory;
+            var autoRigPath = Path.Combine(directory, "rig.json");
+            if (!File.Exists(autoRigPath))
+            {
+                PsdImporter.ImportPsdFile(psdFile, directory);
+            }
+        }
+        else if (Directory.Exists(directory))
+        {
+            var autoRigPath = Path.Combine(directory, "rig.json");
+            if (!File.Exists(autoRigPath))
+            {
+                var psdFiles = Directory.EnumerateFiles(directory, "*.psd", SearchOption.TopDirectoryOnly).ToArray();
+                if (psdFiles.Length > 0)
+                {
+                    PsdImporter.ImportPsdFile(psdFiles[0], directory);
+                }
+            }
+        }
+
         var rigPath = Path.Combine(directory, "rig.json");
         if (!File.Exists(rigPath)) return;
 
