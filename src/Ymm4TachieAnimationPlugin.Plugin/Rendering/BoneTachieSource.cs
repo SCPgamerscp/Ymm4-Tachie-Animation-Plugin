@@ -21,6 +21,7 @@ internal sealed class BoneTachieSource : ITachieSource
     private readonly Vortice.Direct2D1.Effects.AffineTransform2D transform;
     private readonly ID2D1Image output;
     private readonly D3D11MeshRenderer renderer;
+
     private RigDefinition? rig;
     private AnimationClip? animation;
     private RigEvaluator? evaluator;
@@ -37,7 +38,10 @@ internal sealed class BoneTachieSource : ITachieSource
         transform = new Vortice.Direct2D1.Effects.AffineTransform2D(devices.DeviceContext);
         renderer = new D3D11MeshRenderer(devices);
         output = transform.Output;
+
+        // Initialize with empty bitmap
         transform.SetInput(0, empty, true);
+        transform.TransformMatrix = Matrix3x2.CreateTranslation(-empty.Size.Width / 2f, -empty.Size.Height / 2f);
     }
 
     public ID2D1Image Output => output;
@@ -55,20 +59,11 @@ internal sealed class BoneTachieSource : ITachieSource
         var character = characterParameter as BoneCharacterParameter;
         var item = itemParameter as BoneItemParameter;
         var face = faceParameter as BoneFaceParameter;
+
         if (character?.DirectoryPath != rawDirectoryPath || item?.MotionName != loadedMotion)
             Load(character?.DirectoryPath, item?.MotionName);
 
-        if (rig is null || evaluator is null)
-        {
-            SetEmpty();
-            return;
-        }
-
-        var sampleTime = TimeSpan.FromTicks((long)(tachieTime.Ticks * (item?.PlaybackSpeed ?? 1)));
-        var sampledPose = animation?.Sample(rig, sampleTime, tachieLength) ?? Pose.FromRestPose(rig);
-        var pose = runtimeController?.Apply(sampledPose, sampleTime, face?.Expression, kuchipaku) ?? sampledPose;
-        _ = evaluator.EvaluateGlobals(pose);
-        if (packetBuilder is null || string.IsNullOrWhiteSpace(loadedDirectory))
+        if (rig is null || evaluator is null || packetBuilder is null || string.IsNullOrWhiteSpace(loadedDirectory))
         {
             SetEmpty();
             return;
@@ -76,16 +71,36 @@ internal sealed class BoneTachieSource : ITachieSource
 
         try
         {
-            transform.SetInput(0, null, true);
-            var bitmap = renderer.Render(packetBuilder.Build(pose), loadedDirectory, out var origin);
-            var size = bitmap.Size;
-            transform.TransformMatrix = Matrix3x2.CreateTranslation(-size.Width / 2f, -size.Height / 2f);
-            transform.SetInput(0, bitmap, true);
+            var sampleTime = TimeSpan.FromTicks((long)(tachieTime.Ticks * (item?.PlaybackSpeed ?? 1)));
+            var sampledPose = animation?.Sample(rig, sampleTime, tachieLength) ?? Pose.FromRestPose(rig);
+            var pose = runtimeController?.Apply(sampledPose, sampleTime, face?.Expression, kuchipaku) ?? sampledPose;
+            _ = evaluator.EvaluateGlobals(pose);
+
+            var packets = packetBuilder.Build(pose);
+            var bitmap = renderer.Render(packets, loadedDirectory, out _);
+
+            if (bitmap is not null)
+            {
+                var size = bitmap.Size;
+                transform.TransformMatrix = Matrix3x2.CreateTranslation(-size.Width / 2f, -size.Height / 2f);
+                transform.SetInput(0, bitmap, true);
+            }
+            else
+            {
+                SetEmpty();
+            }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"[BoneTachieSource] Update Exception: {ex}");
             SetEmpty();
         }
+    }
+
+    private void SetEmpty()
+    {
+        transform.TransformMatrix = Matrix3x2.CreateTranslation(-empty.Size.Width / 2f, -empty.Size.Height / 2f);
+        transform.SetInput(0, empty, true);
     }
 
     private void Load(string? directory, string? motionName)
@@ -101,59 +116,54 @@ internal sealed class BoneTachieSource : ITachieSource
 
         if (string.IsNullOrWhiteSpace(directory)) return;
 
-        // Auto-handle PSD file path or directory containing PSD file if rig.json does not exist
-        if (File.Exists(directory) && Path.GetExtension(directory).Equals(".psd", StringComparison.OrdinalIgnoreCase))
-        {
-            var psdFile = directory;
-            directory = Path.GetDirectoryName(directory) ?? directory;
-            loadedDirectory = directory;
-            var autoRigPath = Path.Combine(directory, "rig.json");
-            if (!File.Exists(autoRigPath))
-            {
-                PsdImporter.ImportPsdFile(psdFile, directory);
-            }
-        }
-        else if (Directory.Exists(directory))
-        {
-            var autoRigPath = Path.Combine(directory, "rig.json");
-            if (!File.Exists(autoRigPath))
-            {
-                var psdFiles = Directory.EnumerateFiles(directory, "*.psd", SearchOption.TopDirectoryOnly).ToArray();
-                if (psdFiles.Length > 0)
-                {
-                    PsdImporter.ImportPsdFile(psdFiles[0], directory);
-                }
-            }
-        }
-
-        var rigPath = Path.Combine(directory, "rig.json");
-        if (!File.Exists(rigPath)) return;
-
         try
         {
+            // Auto-handle PSD file path or directory containing PSD file if rig.json does not exist
+            if (File.Exists(directory) && Path.GetExtension(directory).Equals(".psd", StringComparison.OrdinalIgnoreCase))
+            {
+                var psdFile = directory;
+                directory = Path.GetDirectoryName(directory) ?? directory;
+                loadedDirectory = directory;
+                var autoRigPath = Path.Combine(directory, "rig.json");
+                if (!File.Exists(autoRigPath))
+                {
+                    PsdImporter.ImportPsdFile(psdFile, directory);
+                }
+            }
+            else if (Directory.Exists(directory))
+            {
+                var autoRigPath = Path.Combine(directory, "rig.json");
+                if (!File.Exists(autoRigPath))
+                {
+                    var psdFiles = Directory.EnumerateFiles(directory, "*.psd", SearchOption.TopDirectoryOnly).ToArray();
+                    if (psdFiles.Length > 0)
+                    {
+                        PsdImporter.ImportPsdFile(psdFiles[0], directory);
+                    }
+                }
+            }
+
+            var rigPath = Path.Combine(directory, "rig.json");
+            if (!File.Exists(rigPath)) return;
+
             rig = RigSerializer.DeserializeRig(File.ReadAllText(rigPath));
             evaluator = new RigEvaluator(rig);
             runtimeController = new RuntimePoseController(rig);
             packetBuilder = new MeshRenderPacketBuilder(rig);
+
             var motionPath = Path.Combine(directory, $"{motionName ?? "idle"}.ymm4anim");
             if (File.Exists(motionPath))
                 animation = RigSerializer.DeserializeAnimation(File.ReadAllText(motionPath));
-
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"[BoneTachieSource] Load Exception: {ex}");
             rig = null;
             animation = null;
             evaluator = null;
             runtimeController = null;
             packetBuilder = null;
         }
-    }
-
-    private void SetEmpty()
-    {
-        transform.SetInput(0, empty, true);
-        transform.TransformMatrix = Matrix3x2.CreateTranslation(-empty.Size.Width / 2, -empty.Size.Height / 2);
     }
 
     public void Dispose()

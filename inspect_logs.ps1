@@ -3,6 +3,8 @@ $logs = Get-ChildItem -Path $logDir -Filter *.log | Sort-Object LastWriteTime -D
 
 foreach ($l in $logs) {
     Write-Host "=== LOG FILE: $($l.Name) (Last Modified: $($l.LastWriteTime)) ==="
-    Get-Content $l.FullName -Encoding UTF8
+    $lines = Get-Content $l.FullName -Encoding UTF8
+    Write-Host "Total Lines: $($lines.Count)"
+    $lines | Select-Object -Last 100 | ForEach-Object { Write-Host $_ }
     Write-Host "`n--------------------------------------------------`n"
 }
