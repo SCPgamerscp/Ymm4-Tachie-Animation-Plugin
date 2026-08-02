@@ -77,7 +77,7 @@ internal sealed class BoneTachieSource : ITachieSource
         {
             transform.SetInput(0, null, true);
             var bitmap = renderer.Render(packetBuilder.Build(pose), loadedDirectory, out var origin);
-            transform.TransformMatrix = Matrix3x2.CreateTranslation(origin);
+            transform.TransformMatrix = Matrix3x2.CreateTranslation(origin.X, -origin.Y);
             transform.SetInput(0, bitmap, true);
         }
         catch (Exception)

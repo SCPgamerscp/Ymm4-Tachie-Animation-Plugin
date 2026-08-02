@@ -130,7 +130,7 @@ internal sealed class D3D11MeshRenderer : IDisposable
         maximum = new Vector2(MathF.Ceiling(maximum.X), MathF.Ceiling(maximum.Y));
         var width = Math.Clamp((int)MathF.Max(1, maximum.X - minimum.X), 1, 16384);
         var height = Math.Clamp((int)MathF.Max(1, maximum.Y - minimum.Y), 1, 16384);
-        origin = minimum;
+        origin = new Vector2(minimum.X, maximum.Y);
         EnsureTarget(width, height);
         ClearTarget();
 
