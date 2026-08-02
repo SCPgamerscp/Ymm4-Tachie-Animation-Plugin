@@ -1,0 +1,217 @@
+<Window x:Class="Ymm4TachieAnimationPlugin.Editor.Views.RigEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="YMM4 2D Bone Rig Editor" Width="1280" Height="820"
+        MinWidth="980" MinHeight="640" Background="#17191D" Foreground="#E8EAED"
+        WindowStartupLocation="CenterOwner" KeyDown="Window_KeyDown">
+    <Window.Resources>
+        <SolidColorBrush x:Key="PanelBrush" Color="#202329" />
+        <SolidColorBrush x:Key="BorderBrush" Color="#343942" />
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <Style TargetType="Button">
+            <Setter Property="Margin" Value="3" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="Background" Value="#303640" />
+            <Setter Property="Foreground" Value="#F1F3F4" />
+            <Setter Property="BorderBrush" Value="#4A5260" />
+        </Style>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#E8EAED" />
+        </Style>
+        <DrawingBrush x:Key="CheckerBrush" TileMode="Tile" Viewport="0,0,24,24" ViewportUnits="Absolute">
+            <DrawingBrush.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="#262A31">
+                        <GeometryDrawing.Geometry><RectangleGeometry Rect="0,0,24,24" /></GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <GeometryDrawing Brush="#2D323A">
+                        <GeometryDrawing.Geometry>
+                            <GeometryGroup>
+                                <RectangleGeometry Rect="0,0,12,12" />
+                                <RectangleGeometry Rect="12,12,12,12" />
+                            </GeometryGroup>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="190" />
+            <RowDefinition Height="28" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="#242830" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <DockPanel Margin="5">
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                    <Button Content="保存" Command="{Binding SaveCommand}" />
+                    <Button Content="バックアップ" Command="{Binding BackupCommand}" />
+                    <Separator Margin="6,2" />
+                    <Button Content="元に戻す" Command="{Binding UndoCommand}" />
+                    <Button Content="やり直す" Command="{Binding RedoCommand}" />
+                    <Separator Margin="6,2" />
+                    <Button Content="4節チェーン追加" Command="{Binding AddChainCommand}" />
+                    <Button Content="8脚生成" Command="{Binding AddEightLegsCommand}" />
+                    <Button Content="立ち絵取込" Click="ImportFolder_Click" />
+                    <Separator Margin="6,2" />
+                    <Button Content="W 移動" Click="TranslateTool_Click" />
+                    <Button Content="E 回転" Click="RotateTool_Click" />
+                    <Button Content="R 拡縮" Click="ScaleTool_Click" />
+                    <Button Content="IK" Click="IkTool_Click" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <TextBlock Text="モーション" VerticalAlignment="Center" Margin="8,0" />
+                    <ComboBox Width="140" ItemsSource="{Binding Motions}" SelectedItem="{Binding SelectedMotion}" Margin="3" />
+                    <TextBlock Text="背景" VerticalAlignment="Center" Margin="8,0" />
+                    <ComboBox Width="125" SelectedIndex="{Binding BackgroundMode}" Margin="3">
+                        <ComboBoxItem Content="市松模様" />
+                        <ComboBoxItem Content="単色" />
+                        <ComboBoxItem Content="YMM4ライブ" />
+                    </ComboBox>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="230" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="270" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0" Padding="8">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="ボーン階層" FontWeight="SemiBold" FontSize="15" Margin="4,4,4,10" />
+                    <ListBox ItemsSource="{Binding Bones}" SelectedItem="{Binding SelectedBone}" Background="#191C21" BorderBrush="#343942">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="4">
+                                    <TextBlock Text="{Binding Name}" />
+                                    <TextBlock Text="{Binding Tag}" Foreground="#8992A2" FontSize="10" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <Border x:Name="EditorSurface" Grid.Column="1" Background="{StaticResource CheckerBrush}" ClipToBounds="True"
+                    MouseLeftButtonDown="EditorSurface_MouseLeftButtonDown"
+                    MouseLeftButtonUp="EditorSurface_MouseLeftButtonUp"
+                    MouseMove="EditorSurface_MouseMove">
+                <Grid>
+                    <TextBlock Text="{Binding RigName}" Margin="12" Foreground="#9FA8B8" FontSize="15" />
+                    <ItemsControl ItemsSource="{Binding BoneVisuals}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><Canvas Width="900" Height="600" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Canvas>
+                                    <Line X1="{Binding X1}" Y1="{Binding Y1}" X2="{Binding X2}" Y2="{Binding Y2}"
+                                          StrokeThickness="5" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                                        <Line.Style>
+                                            <Style TargetType="Line">
+                                                <Setter Property="Stroke" Value="#63B3ED" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                        <Setter Property="Stroke" Value="#F6C85F" />
+                                                        <Setter Property="StrokeThickness" Value="7" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Line.Style>
+                                        <Line.RenderTransform>
+                                            <TranslateTransform X="450" Y="300" />
+                                        </Line.RenderTransform>
+                                    </Line>
+                                    <Ellipse Width="10" Height="10" Fill="#F5F7FA"
+                                             Canvas.Left="{Binding X1}" Canvas.Top="{Binding Y1}">
+                                        <Ellipse.RenderTransform>
+                                            <TransformGroup>
+                                                <TranslateTransform X="445" Y="295" />
+                                            </TransformGroup>
+                                        </Ellipse.RenderTransform>
+                                    </Ellipse>
+                                </Canvas>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="12" Padding="8,4"
+                            Background="#B0202329" CornerRadius="4">
+                        <TextBlock Text="W:移動  E:回転  R:拡縮  S:キー打刻" Foreground="#B8C0CC" />
+                    </Border>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="2" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0" Padding="12">
+                <StackPanel>
+                    <TextBlock Text="プロパティ" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,14" />
+                    <TextBlock Text="ボーン名" Foreground="#99A3B2" />
+                    <TextBox Text="{Binding SelectedBone.Name, Mode=OneWay}" Margin="0,4,0,12" Padding="6" IsReadOnly="True" />
+                    <TextBlock Text="部位タグ" Foreground="#99A3B2" />
+                    <TextBox Text="{Binding SelectedBone.Tag, Mode=OneWay}" Margin="0,4,0,12" Padding="6" IsReadOnly="True" />
+                    <Separator Margin="0,8" />
+                    <CheckBox Content="グリッドスナップ" IsChecked="{Binding GridSnapEnabled}" Margin="0,8" />
+                    <CheckBox Content="15°角度スナップ" IsChecked="{Binding AngleSnapEnabled}" Margin="0,8" />
+                    <CheckBox Content="画像中心・境界スナップ" IsChecked="{Binding GuideSnapEnabled}" Margin="0,8" />
+                    <CheckBox Content="オートキー" Margin="0,8" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2" Background="#1D2026" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="10">
+            <Grid>
+                <Grid.RowDefinitions><RowDefinition Height="32" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <DockPanel>
+                    <TextBlock Text="タイムライン / ベジェグラフ" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text="0f     15f     30f     45f     60f" HorizontalAlignment="Right" Foreground="#7F8998" VerticalAlignment="Center" />
+                </DockPanel>
+                <Border Grid.Row="1" Background="#15181C" BorderBrush="#343942" BorderThickness="1">
+                    <Grid Margin="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="190" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <CheckBox Content="オートキー" IsChecked="{Binding AutoKeyEnabled}" Margin="4" />
+                            <Button Content="現在位置にキー追加" Click="AddKeyframe_Click" />
+                            <Button Content="選択キーを削除" Click="DeleteKeyframe_Click" />
+                        </StackPanel>
+                        <Grid Grid.Column="1">
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                            <DockPanel Margin="8,0">
+                                <TextBlock Text="フレーム" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBox Width="70" Text="{Binding CurrentFrame, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0" />
+                                <Slider Minimum="0" Maximum="600" Value="{Binding CurrentFrame}" TickFrequency="1" IsSnapToTickEnabled="True" />
+                            </DockPanel>
+                            <ListBox Grid.Row="1" ItemsSource="{Binding Keyframes}" SelectedItem="{Binding SelectedKeyframe}"
+                                     Background="#101216" BorderThickness="0" Margin="8">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Frame, StringFormat={}{0:F0}f}" Width="70" Foreground="#63B3ED" />
+                                            <TextBlock Text="Bezier" Foreground="#9FA8B8" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="3" Background="#242830" Padding="8,4">
+            <DockPanel>
+                <TextBlock Text="{Binding Status}" />
+                <TextBlock Text="未保存の変更あり" Foreground="#F6C85F" HorizontalAlignment="Right"
+                           Visibility="{Binding IsDirty, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

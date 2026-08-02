@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Ymm4TachieAnimationPlugin.Core/Ymm4TachieAnimationPlugin.Core.csproj" />
+    <Project Path="src/Ymm4TachieAnimationPlugin.Editor/Ymm4TachieAnimationPlugin.Editor.csproj" />
+    <Project Path="src/Ymm4TachieAnimationPlugin.Plugin/Ymm4TachieAnimationPlugin.Plugin.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Ymm4TachieAnimationPlugin.Core.Tests/Ymm4TachieAnimationPlugin.Core.Tests.csproj" />
+  </Folder>
+</Solution>
