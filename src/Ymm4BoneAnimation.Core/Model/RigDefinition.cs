@@ -21,6 +21,10 @@ public sealed record RigDefinition
     public required string Name { get; init; }
     public IReadOnlyList<BoneDefinition> Bones { get; init; } = [];
     public IReadOnlyList<MeshPartDefinition> Parts { get; init; } = [];
+    public IReadOnlyList<ExpressionDefinition> Expressions { get; init; } = [];
+    public IReadOnlyList<ProceduralChainDefinition> ProceduralChains { get; init; } = [];
+    public IReadOnlyList<AttachmentDefinition> Attachments { get; init; } = [];
+    public IReadOnlyList<RuntimeEventDefinition> Events { get; init; } = [];
 
     public void Validate()
     {
@@ -57,6 +61,25 @@ public sealed record RigDefinition
                 throw new RigValidationException($"Part id is empty or duplicated: {part.Id}.");
             part.Validate(byId.Keys);
         }
+
+        if (Expressions.Select(x => x.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() != Expressions.Count)
+            throw new RigValidationException("Expression names must be unique.");
+        foreach (var expression in Expressions)
+        {
+            if (string.IsNullOrWhiteSpace(expression.Name) || expression.BoneDeltas.Keys.Any(x => !byId.ContainsKey(x)))
+                throw new RigValidationException("An expression has an invalid name or bone reference.");
+        }
+        foreach (var chain in ProceduralChains)
+        {
+            if (string.IsNullOrWhiteSpace(chain.Name) || chain.BoneIds.Count < 2 || chain.BoneIds.Any(x => !byId.ContainsKey(x)))
+                throw new RigValidationException("A procedural chain has an invalid name or bone reference.");
+            if (chain.Damping is < 0 or > 1 || chain.ConstraintIterations < 1)
+                throw new RigValidationException($"Procedural chain '{chain.Name}' has invalid physics settings.");
+        }
+        if (Attachments.Any(x => string.IsNullOrWhiteSpace(x.Name) || !byId.ContainsKey(x.BoneId)))
+            throw new RigValidationException("An attachment has an invalid name or bone reference.");
+        if (Events.Any(x => string.IsNullOrWhiteSpace(x.Name) || x.Time < TimeSpan.Zero || x.BoneId is { } id && !byId.ContainsKey(id)))
+            throw new RigValidationException("A runtime event has invalid data.");
     }
 
     private static void DetectCycle(BoneDefinition start, IReadOnlyDictionary<Guid, BoneDefinition> bones)
