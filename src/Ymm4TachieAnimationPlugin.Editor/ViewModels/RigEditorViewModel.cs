@@ -189,8 +189,13 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
 
     public void ImportDirectory(string directory)
     {
-        var imported = CutoutFolderImporter.Import(directory, session.Rig.Name);
-        session.Apply("Import cut-out images", _ => imported);
+        ImportFileOrDirectory(directory);
+    }
+
+    public void ImportFileOrDirectory(string path)
+    {
+        var imported = CutoutFolderImporter.Import(path, session.Rig.Name);
+        session.Apply("Import cut-out images or PSD", _ => imported);
         Status = $"Imported {imported.Parts.Count} parts";
     }
 

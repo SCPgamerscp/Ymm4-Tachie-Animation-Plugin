@@ -32,10 +32,29 @@ public partial class RigEditorWindow : Window
         };
     }
 
+    private void ImportPsdFile_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "PSDファイルを選択",
+            Filter = "Photoshop PSD File (*.psd)|*.psd|すべてのファイル (*.*)|*.*",
+        };
+        if (dialog.ShowDialog(this) == true) ViewModel.ImportFileOrDirectory(dialog.FileName);
+    }
+
     private void ImportFolder_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFolderDialog { Title = "バラバラ立ち絵フォルダーを選択" };
         if (dialog.ShowDialog(this) == true) ViewModel.ImportDirectory(dialog.FolderName);
+    }
+
+    private void EditorSurface_Drop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            var files = (string[])e.Data.GetData(DataFormats.FileDrop);
+            if (files is { Length: > 0 }) ViewModel.ImportFileOrDirectory(files[0]);
+        }
     }
 
     private void AddKeyframe_Click(object sender, RoutedEventArgs e) => ViewModel.AddKeyframe();

@@ -56,7 +56,8 @@
                     <Separator Margin="6,2" />
                     <Button Content="4節チェーン追加" Command="{Binding AddChainCommand}" />
                     <Button Content="8脚生成" Command="{Binding AddEightLegsCommand}" />
-                    <Button Content="立ち絵取込" Click="ImportFolder_Click" />
+                    <Button Content="PSD取込" Click="ImportPsdFile_Click" />
+                    <Button Content="フォルダー取込" Click="ImportFolder_Click" />
                     <Separator Margin="6,2" />
                     <Button Content="W 移動" Click="TranslateTool_Click" />
                     <Button Content="E 回転" Click="RotateTool_Click" />
@@ -100,6 +101,7 @@
             </Border>
 
             <Border x:Name="EditorSurface" Grid.Column="1" Background="{StaticResource CheckerBrush}" ClipToBounds="True"
+                    AllowDrop="True" Drop="EditorSurface_Drop"
                     MouseLeftButtonDown="EditorSurface_MouseLeftButtonDown"
                     MouseLeftButtonUp="EditorSurface_MouseLeftButtonUp"
                     MouseMove="EditorSurface_MouseMove">
