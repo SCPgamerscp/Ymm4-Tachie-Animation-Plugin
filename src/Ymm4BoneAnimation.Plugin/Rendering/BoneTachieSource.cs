@@ -1,3 +1,4 @@
+using System.IO;
 using System.Numerics;
 using Vortice.Direct2D1;
 using YukkuriMovieMaker.Commons;
@@ -5,6 +6,7 @@ using YukkuriMovieMaker.Plugin;
 using YukkuriMovieMaker.Plugin.Tachie;
 using Ymm4BoneAnimation.Core.Animation;
 using Ymm4BoneAnimation.Core.Model;
+using Ymm4BoneAnimation.Core.Rendering;
 using Ymm4BoneAnimation.Core.Runtime;
 using Ymm4BoneAnimation.Core.Serialization;
 using Ymm4BoneAnimation.Plugin.Parameters;
@@ -17,10 +19,12 @@ internal sealed class BoneTachieSource : ITachieSource
     private readonly ID2D1Bitmap empty;
     private readonly Vortice.Direct2D1.Effects.AffineTransform2D transform;
     private readonly ID2D1Image output;
-    private IImageFileSource? image;
+    private readonly D3D11MeshRenderer renderer;
     private RigDefinition? rig;
     private AnimationClip? animation;
     private RigEvaluator? evaluator;
+    private RuntimePoseController? runtimeController;
+    private MeshRenderPacketBuilder? packetBuilder;
     private string? loadedDirectory;
     private string? loadedMotion;
 
@@ -29,6 +33,7 @@ internal sealed class BoneTachieSource : ITachieSource
         this.devices = devices;
         empty = devices.DeviceContext.CreateEmptyBitmap();
         transform = new Vortice.Direct2D1.Effects.AffineTransform2D(devices.DeviceContext);
+        renderer = new D3D11MeshRenderer(devices);
         output = transform.Output;
         transform.SetInput(0, empty, true);
     }
@@ -47,6 +52,7 @@ internal sealed class BoneTachieSource : ITachieSource
     {
         var character = characterParameter as BoneCharacterParameter;
         var item = itemParameter as BoneItemParameter;
+        var face = faceParameter as BoneFaceParameter;
         if (character?.DirectoryPath != loadedDirectory || item?.MotionName != loadedMotion)
             Load(character?.DirectoryPath, item?.MotionName);
 
@@ -57,15 +63,25 @@ internal sealed class BoneTachieSource : ITachieSource
         }
 
         var sampleTime = TimeSpan.FromTicks((long)(tachieTime.Ticks * (item?.PlaybackSpeed ?? 1)));
-        var pose = animation?.Sample(rig, sampleTime, tachieLength) ?? Pose.FromRestPose(rig);
+        var sampledPose = animation?.Sample(rig, sampleTime, tachieLength) ?? Pose.FromRestPose(rig);
+        var pose = runtimeController?.Apply(sampledPose, sampleTime, face?.Expression, kuchipaku) ?? sampledPose;
         _ = evaluator.EvaluateGlobals(pose);
-
-        // Phase 1 presents the first cut-out part through YMM4's D2D pipeline. The evaluator already
-        // produces all mesh vertices; the custom D3D11 mesh renderer will consume them in Phase 2.
-        if (image is not null)
+        if (packetBuilder is null || string.IsNullOrWhiteSpace(loadedDirectory))
         {
-            transform.TransformMatrix = Matrix3x2.CreateTranslation(-image.Output.Size.Width / 2, -image.Output.Size.Height / 2);
-            transform.SetInput(0, image.Output, true);
+            SetEmpty();
+            return;
+        }
+
+        try
+        {
+            transform.SetInput(0, null, true);
+            var bitmap = renderer.Render(packetBuilder.Build(pose), loadedDirectory, out var origin);
+            transform.TransformMatrix = Matrix3x2.CreateTranslation(origin);
+            transform.SetInput(0, bitmap, true);
+        }
+        catch (Exception)
+        {
+            SetEmpty();
         }
     }
 
@@ -73,11 +89,11 @@ internal sealed class BoneTachieSource : ITachieSource
     {
         loadedDirectory = directory;
         loadedMotion = motionName;
-        image?.Dispose();
-        image = null;
         rig = null;
         animation = null;
         evaluator = null;
+        runtimeController = null;
+        packetBuilder = null;
 
         if (string.IsNullOrWhiteSpace(directory)) return;
         var rigPath = Path.Combine(directory, "rig.json");
@@ -87,26 +103,20 @@ internal sealed class BoneTachieSource : ITachieSource
         {
             rig = RigSerializer.DeserializeRig(File.ReadAllText(rigPath));
             evaluator = new RigEvaluator(rig);
+            runtimeController = new RuntimePoseController(rig);
+            packetBuilder = new MeshRenderPacketBuilder(rig);
             var motionPath = Path.Combine(directory, $"{motionName ?? "idle"}.ymm4anim");
             if (File.Exists(motionPath))
                 animation = RigSerializer.DeserializeAnimation(File.ReadAllText(motionPath));
 
-            var firstPart = rig.Parts.OrderBy(x => x.ZOrder).FirstOrDefault();
-            if (firstPart is not null)
-            {
-                var texturePath = Path.IsPathRooted(firstPart.TexturePath)
-                    ? firstPart.TexturePath
-                    : Path.Combine(directory, firstPart.TexturePath);
-                if (File.Exists(texturePath)) image = ImageFileSourceFactory.Create(devices, texturePath);
-            }
         }
         catch (Exception)
         {
             rig = null;
             animation = null;
             evaluator = null;
-            image?.Dispose();
-            image = null;
+            runtimeController = null;
+            packetBuilder = null;
         }
     }
 
@@ -122,6 +132,6 @@ internal sealed class BoneTachieSource : ITachieSource
         output.Dispose();
         transform.Dispose();
         empty.Dispose();
-        image?.Dispose();
+        renderer.Dispose();
     }
 }
