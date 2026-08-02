@@ -172,7 +172,7 @@ internal sealed class D3D11MeshRenderer : IDisposable
         {
             var local = vertex.Position - minimum;
             return new GpuVertex(
-                new Vector2(local.X / width * 2 - 1, 1 - local.Y / height * 2),
+                new Vector2(local.X / width * 2 - 1, local.Y / height * 2 - 1),
                 vertex.TextureCoordinate);
         }).ToArray();
         var indices = packet.TriangleIndices.Select(Convert.ToUInt32).ToArray();
