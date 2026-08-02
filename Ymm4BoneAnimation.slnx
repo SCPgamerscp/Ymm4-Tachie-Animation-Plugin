@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Ymm4BoneAnimation.Core/Ymm4BoneAnimation.Core.csproj" />
+    <Project Path="src/Ymm4BoneAnimation.Editor/Ymm4BoneAnimation.Editor.csproj" />
+    <Project Path="src/Ymm4BoneAnimation.Plugin/Ymm4BoneAnimation.Plugin.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Ymm4BoneAnimation.Core.Tests/Ymm4BoneAnimation.Core.Tests.csproj" />
+  </Folder>
+</Solution>

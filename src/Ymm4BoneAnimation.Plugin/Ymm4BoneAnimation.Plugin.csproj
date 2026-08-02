@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <YMM4DirPath Condition="'$(YMM4DirPath)' == ''">$(YMM4_DIR)</YMM4DirPath>
+  </PropertyGroup>
+
+  <Target Name="ValidateYmm4Path" BeforeTargets="ResolveReferences" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error Condition="'$(YMM4DirPath)' == ''" Text="Set YMM4DirPath (ending with a directory separator) to the YMM4 installation directory." />
+    <Error Condition="!Exists('$(YMM4DirPath)YukkuriMovieMaker.Plugin.dll')" Text="YukkuriMovieMaker.Plugin.dll was not found under YMM4DirPath." />
+  </Target>
+
+  <ItemGroup>
+    <ProjectReference Include="../Ymm4BoneAnimation.Core/Ymm4BoneAnimation.Core.csproj" />
+    <ProjectReference Include="../Ymm4BoneAnimation.Editor/Ymm4BoneAnimation.Editor.csproj" />
+    <Reference Include="YukkuriMovieMaker.Controls" HintPath="$(YMM4DirPath)YukkuriMovieMaker.Controls.dll" Private="false" />
+    <Reference Include="YukkuriMovieMaker.Plugin" HintPath="$(YMM4DirPath)YukkuriMovieMaker.Plugin.dll" Private="false" />
+    <Reference Include="SharpGen.Runtime" HintPath="$(YMM4DirPath)SharpGen.Runtime.dll" Private="false" />
+    <Reference Include="SharpGen.Runtime.COM" HintPath="$(YMM4DirPath)SharpGen.Runtime.COM.dll" Private="false" />
+    <Reference Include="Vortice.D3DCompiler" HintPath="$(YMM4DirPath)Vortice.D3DCompiler.dll" Private="false" />
+    <Reference Include="Vortice.Direct2D1" HintPath="$(YMM4DirPath)Vortice.Direct2D1.dll" Private="false" />
+    <Reference Include="Vortice.Direct3D11" HintPath="$(YMM4DirPath)Vortice.Direct3D11.dll" Private="false" />
+    <Reference Include="Vortice.DirectX" HintPath="$(YMM4DirPath)Vortice.DirectX.dll" Private="false" />
+    <Reference Include="Vortice.DXGI" HintPath="$(YMM4DirPath)Vortice.DXGI.dll" Private="false" />
+    <Reference Include="Vortice.Mathematics" HintPath="$(YMM4DirPath)Vortice.Mathematics.dll" Private="false" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <YmmeOutputPath Condition="'$(YmmeOutputPath)' == ''">$(MSBuildProjectDirectory)/../../artifacts/Ymm4BoneAnimation.Plugin.ymme</YmmeOutputPath>
+  </PropertyGroup>
+
+  <Target Name="CreateYmmePackage" AfterTargets="Publish" Condition="'$(CreateYmmePackage)' == 'true'">
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(YmmeOutputPath)'))" />
+    <Delete Files="$(YmmeOutputPath)" />
+    <ZipDirectory SourceDirectory="$(PublishDir)" DestinationFile="$(YmmeOutputPath)" Overwrite="true" />
+    <Message Importance="high" Text="Created YMM4 package: $(YmmeOutputPath)" />
+  </Target>
+</Project>
