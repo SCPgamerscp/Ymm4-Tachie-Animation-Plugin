@@ -144,6 +144,11 @@ internal sealed class BoneTachieSource : ITachieSource
                     {
                         PsdImporter.ImportPsdFile(psdFiles[0], directory);
                     }
+                    else
+                    {
+                        // Fallback for directory with PNG/image files
+                        CutoutFolderImporter.Import(directory);
+                    }
                 }
             }
 
