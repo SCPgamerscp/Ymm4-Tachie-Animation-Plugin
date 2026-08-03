@@ -60,8 +60,12 @@ internal sealed class BoneTachieSource : ITachieSource
         var item = itemParameter as BoneItemParameter;
         var face = faceParameter as BoneFaceParameter;
 
-        if (character?.DirectoryPath != rawDirectoryPath || item?.MotionName != loadedMotion)
-            Load(character?.DirectoryPath, item?.MotionName);
+        var effectivePath = !string.IsNullOrWhiteSpace(character?.PsdFilePath)
+            ? character.PsdFilePath
+            : character?.DirectoryPath;
+
+        if (effectivePath != rawDirectoryPath || item?.MotionName != loadedMotion)
+            Load(effectivePath, item?.MotionName);
 
         if (rig is null || evaluator is null || packetBuilder is null || string.IsNullOrWhiteSpace(loadedDirectory))
         {
