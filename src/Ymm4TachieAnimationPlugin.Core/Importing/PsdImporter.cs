@@ -142,6 +142,7 @@ public static class PsdImporter
         var colorMode = ReadUInt16BE(reader);
 
         if (colorMode != 3) throw new InvalidDataException($"Unsupported PSD color mode: {colorMode}. Only RGB is supported.");
+        if (depth != 8) throw new InvalidDataException($"Unsupported PSD bit depth: {depth}-bit. Only 8-bit/channel is supported. Please flatten to 8bit in Photoshop (イメージ > モード > 8bit/チャンネル) and re-save.");
 
         var colorModeLen = ReadUInt32BE(reader);
         reader.BaseStream.Position += colorModeLen;

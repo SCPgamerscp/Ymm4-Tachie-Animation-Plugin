@@ -30,6 +30,17 @@ internal sealed class BoneTachieSource : ITachieSource
     private string? rawDirectoryPath;
     private string? loadedDirectory;
     private string? loadedMotion;
+    private bool loggedNullBitmap;
+
+    private static void LogDiagnostic(string message)
+    {
+        try
+        {
+            var logPath = Path.Combine(Path.GetTempPath(), "Ymm4TachieAnimationPlugin_error.log");
+            File.AppendAllText(logPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}\n\n");
+        }
+        catch { /* logging must never throw */ }
+    }
 
     public BoneTachieSource(IGraphicsDevicesAndContext devices)
     {
@@ -85,18 +96,25 @@ internal sealed class BoneTachieSource : ITachieSource
 
             if (bitmap is not null)
             {
+                loggedNullBitmap = false;
                 var size = bitmap.Size;
                 transform.TransformMatrix = Matrix3x2.CreateTranslation(-size.Width / 2f, -size.Height / 2f);
                 transform.SetInput(0, bitmap, true);
             }
             else
             {
+                if (!loggedNullBitmap)
+                {
+                    loggedNullBitmap = true;
+                    LogDiagnostic($"Update() renderer.Render returned null (no exception). directory={loadedDirectory}, packetCount={packets?.Count.ToString() ?? "null"}, poseBoneCount={pose.Transforms.Count}");
+                }
                 SetEmpty();
             }
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[BoneTachieSource] Update Exception: {ex}");
+            LogDiagnostic($"Update() directory={loadedDirectory}\n{ex}");
             SetEmpty();
         }
     }
@@ -117,6 +135,7 @@ internal sealed class BoneTachieSource : ITachieSource
         evaluator = null;
         runtimeController = null;
         packetBuilder = null;
+        loggedNullBitmap = false;
 
         if (string.IsNullOrWhiteSpace(directory)) return;
 
@@ -153,12 +172,18 @@ internal sealed class BoneTachieSource : ITachieSource
             }
 
             var rigPath = Path.Combine(directory, "rig.json");
-            if (!File.Exists(rigPath)) return;
+            if (!File.Exists(rigPath))
+            {
+                LogDiagnostic($"Load() rig.json not found after import attempt. directory={directory}, rigPath={rigPath}");
+                return;
+            }
 
             rig = RigSerializer.DeserializeRig(File.ReadAllText(rigPath));
             evaluator = new RigEvaluator(rig);
             runtimeController = new RuntimePoseController(rig);
             packetBuilder = new MeshRenderPacketBuilder(rig);
+
+            LogDiagnostic($"Load() succeeded. directory={directory}, boneCount={rig.Bones.Count}, partCount={rig.Parts.Count}");
 
             var motionPath = Path.Combine(directory, $"{motionName ?? "idle"}.ymm4anim");
             if (File.Exists(motionPath))
@@ -167,6 +192,7 @@ internal sealed class BoneTachieSource : ITachieSource
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[BoneTachieSource] Load Exception: {ex}");
+            LogDiagnostic($"Load() directory={directory}\n{ex}");
             rig = null;
             animation = null;
             evaluator = null;
