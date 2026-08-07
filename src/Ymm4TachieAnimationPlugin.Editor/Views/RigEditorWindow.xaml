@@ -110,8 +110,11 @@
                         <ListBox ItemsSource="{Binding Parts}" SelectedItem="{Binding SelectedPart}" Background="#191C21" BorderBrush="#343942">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <DockPanel Margin="4">
-                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontWeight="Bold" />
+                                    <DockPanel Margin="2">
+                                        <Border Width="28" Height="28" Background="{StaticResource CheckerBrush}" BorderBrush="#4A5260" BorderThickness="1" Margin="0,0,8,0" VerticalAlignment="Center" CornerRadius="3" ClipToBounds="True">
+                                            <Image Source="{Binding Image}" Stretch="Uniform" />
+                                        </Border>
+                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontWeight="Bold" ToolTip="{Binding Name}" TextTrimming="CharacterEllipsis" MaxWidth="110" />
                                         <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
                                             <TextBlock Text="{Binding ZOrder, StringFormat={}Z:{0}}" Foreground="#A0AEC0" VerticalAlignment="Center" Margin="6,0" />
                                             <CheckBox IsChecked="{Binding IsVisible}" VerticalAlignment="Center" ToolTip="表示 / 非表示" />
