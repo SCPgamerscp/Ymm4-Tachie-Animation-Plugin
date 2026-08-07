@@ -1,5 +1,4 @@
 using System.IO;
-using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
@@ -7,10 +6,10 @@ using Ymm4TachieAnimationPlugin.Core.Importing;
 
 namespace Ymm4TachieAnimationPlugin.Editor.Controls;
 
-public partial class DirectorySelectorWithRigEditor : UserControl
+public partial class FileSelectorWithRigEditor : UserControl
 {
     public static readonly DependencyProperty ValueProperty =
-        DependencyProperty.Register(nameof(Value), typeof(string), typeof(DirectorySelectorWithRigEditor),
+        DependencyProperty.Register(nameof(Value), typeof(string), typeof(FileSelectorWithRigEditor),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
 
     public string? Value
@@ -19,25 +18,29 @@ public partial class DirectorySelectorWithRigEditor : UserControl
         set => SetValue(ValueProperty, value);
     }
 
-    public DirectorySelectorWithRigEditor()
+    public FileSelectorWithRigEditor()
     {
         InitializeComponent();
     }
 
-    private void OnBrowseFolderClicked(object sender, RoutedEventArgs e)
+    private void OnBrowseFileClicked(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFolderDialog
+        var dialog = new OpenFileDialog
         {
-            Title = "リグフォルダーを選択",
+            Title = "PSDファイルを選択",
+            Filter = "PSDファイル (*.psd;*.psb)|*.psd;*.psb|すべてのファイル (*.*)|*.*",
+            FilterIndex = 1,
+            Multiselect = false,
         };
-        if (!string.IsNullOrWhiteSpace(Value) && Directory.Exists(Value))
+        if (!string.IsNullOrWhiteSpace(Value) && File.Exists(Value))
         {
-            dialog.InitialDirectory = Value;
+            dialog.InitialDirectory = Path.GetDirectoryName(Value);
+            dialog.FileName = Value;
         }
 
         if (dialog.ShowDialog() == true)
         {
-            Value = dialog.FolderName;
+            Value = dialog.FileName;
         }
     }
 
@@ -52,15 +55,15 @@ public partial class DirectorySelectorWithRigEditor : UserControl
                      ?? dt.GetProperty("PropertyOwner")?.GetValue(DataContext);
             if (owner != null)
             {
-                var psdVal = owner.GetType().GetProperty("PsdFilePath")?.GetValue(owner) as string;
                 var dirVal = owner.GetType().GetProperty("DirectoryPath")?.GetValue(owner) as string;
-                path = !string.IsNullOrWhiteSpace(psdVal) ? psdVal : dirVal;
+                var psdVal = owner.GetType().GetProperty("PsdFilePath")?.GetValue(owner) as string;
+                path = !string.IsNullOrWhiteSpace(dirVal) ? dirVal : psdVal;
             }
         }
 
         if (string.IsNullOrWhiteSpace(path))
         {
-            MessageBox.Show("リグフォルダーまたはPSDファイルが指定されていません。", "案内", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show("PSDファイルまたはリグフォルダーが指定されていません。", "案内", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -96,7 +99,7 @@ public partial class DirectorySelectorWithRigEditor : UserControl
             }
             else
             {
-                MessageBox.Show("指定されたフォルダーまたはファイルが見つかりません。", "エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("指定されたファイルまたはフォルダーが見つかりません。", "エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
         catch (Exception ex)
