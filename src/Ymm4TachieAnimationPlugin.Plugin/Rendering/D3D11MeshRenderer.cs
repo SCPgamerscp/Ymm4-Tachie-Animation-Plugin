@@ -205,6 +205,8 @@ internal sealed class D3D11MeshRenderer : IDisposable
             Format.B8G8R8A8_UNorm,
             source.PixelWidth,
             source.PixelHeight,
+            arraySize: 1,
+            mipLevels: 1,
             bindFlags: BindFlags.ShaderResource);
         var pinned = GCHandle.Alloc(pixels, GCHandleType.Pinned);
         ID3D11Texture2D texture;
@@ -240,6 +242,8 @@ internal sealed class D3D11MeshRenderer : IDisposable
             Format.B8G8R8A8_UNorm,
             width,
             height,
+            arraySize: 1,
+            mipLevels: 1,
             bindFlags: BindFlags.RenderTarget | BindFlags.ShaderResource);
         targetTexture = devices.D3D.Device.CreateTexture2D(description);
         targetView = devices.D3D.Device.CreateRenderTargetView(targetTexture);

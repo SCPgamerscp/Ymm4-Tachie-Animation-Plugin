@@ -1,13 +1,16 @@
 using System.ComponentModel.DataAnnotations;
+using System.IO;
+using System.Windows.Input;
 using YukkuriMovieMaker.Controls;
 using YukkuriMovieMaker.Plugin.Tachie;
 using YukkuriMovieMaker.Settings;
+using Ymm4TachieAnimationPlugin.Core.Importing;
 
 namespace Ymm4TachieAnimationPlugin.Plugin.Parameters;
 
 internal sealed class BoneCharacterParameter : TachieCharacterParameterBase
 {
-    [Display(Name = "\u30EA\u30B0\u30D5\u30A9\u30EB\u30C0\u30FC", Description = "rig.json\u3001\u30C6\u30AF\u30B9\u30C1\u30E3\u3001\u30E2\u30FC\u30B7\u30E7\u30F3\u3092\u683C\u7D0D\u3057\u305F\u30D5\u30A9\u30EB\u30C0\u30FC")]
+    [Display(Name = "リグフォルダー", Description = "rig.json、テクスチャ、モーションを格納したフォルダー")]
     [DirectorySelector]
     public string? DirectoryPath
     {
@@ -16,12 +19,64 @@ internal sealed class BoneCharacterParameter : TachieCharacterParameterBase
     }
     private string? directoryPath;
 
-    [Display(Name = "PSD\u30D5\u30A1\u30A4\u30EB", Description = "PSD\u30D5\u30A1\u30A4\u30EB\u3092\u76F4\u63A5\u6307\u5B9A\u3059\u308B\u5834\u5408\u306F\u3053\u3061\u3089\u3002\u6307\u5B9A\u3057\u305F\u5834\u5408\u306F\u30EA\u30B0\u30D5\u30A9\u30EB\u30C0\u30FC\u3088\u308A\u512A\u5148\u3055\u308C\u3001\u81EA\u52D5\u3067\u30EA\u30B0\u306B\u5909\u63DB\u3055\u308C\u307E\u3059\u3002")]
-    [FileSelector(FileGroupType.TachieParts, CustomFilterName = "PSD\u30D5\u30A1\u30A4\u30EB", CustomFilterValue = "*.psd;*.psb")]
+    [Display(Name = "PSDファイル", Description = "PSDファイルを直接指定する場合はこちら。指定した場合はリグフォルダーより優先され、自動でリグに変換されます。")]
+    [FileSelector(FileGroupType.TachieParts, CustomFilterName = "PSDファイル", CustomFilterValue = "*.psd;*.psb")]
     public string? PsdFilePath
     {
         get => psdFilePath;
         set => Set(ref psdFilePath, value);
     }
     private string? psdFilePath;
+
+    [Display(Name = "ボーンリグ編集", Description = "2Dボーンリグエディターを開いて、ボーン構造やキーフレームモーションを編集します。")]
+    public ICommand OpenRigEditorCommand => openRigEditorCommand ??= new DelegateCommand(OpenRigEditor);
+    private ICommand? openRigEditorCommand;
+
+    private void OpenRigEditor()
+    {
+        var targetPath = !string.IsNullOrWhiteSpace(PsdFilePath) ? PsdFilePath : DirectoryPath;
+        if (string.IsNullOrWhiteSpace(targetPath)) return;
+
+        try
+        {
+            var dir = targetPath;
+            if (File.Exists(targetPath) && Path.GetExtension(targetPath).Equals(".psd", StringComparison.OrdinalIgnoreCase))
+            {
+                dir = Path.GetDirectoryName(targetPath) ?? targetPath;
+                var rigJson = Path.Combine(dir, "rig.json");
+                if (!File.Exists(rigJson))
+                {
+                    PsdImporter.ImportPsdFile(targetPath, dir);
+                }
+            }
+            else if (Directory.Exists(targetPath))
+            {
+                var rigJson = Path.Combine(targetPath, "rig.json");
+                if (!File.Exists(rigJson))
+                {
+                    CutoutFolderImporter.Import(targetPath);
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir))
+            {
+                RigEditorService.Open(dir);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BoneCharacterParameter] Failed to open RigEditor: {ex}");
+        }
+    }
+}
+
+internal sealed class DelegateCommand(Action execute) : ICommand
+{
+    public event EventHandler? CanExecuteChanged
+    {
+        add { }
+        remove { }
+    }
+    public bool CanExecute(object? parameter) => true;
+    public void Execute(object? parameter) => execute();
 }
