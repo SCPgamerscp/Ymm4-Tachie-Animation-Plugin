@@ -4,6 +4,8 @@ using System.IO;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Ymm4TachieAnimationPlugin.Core.Animation;
 using Ymm4TachieAnimationPlugin.Core.Editing;
 using Ymm4TachieAnimationPlugin.Core.Model;
@@ -32,6 +34,50 @@ public enum EditorTransformTool
 
 public sealed record BoneNodeViewModel(Guid Id, string Name, string? Tag);
 public sealed record BoneVisualViewModel(Guid Id, float X1, float Y1, float X2, float Y2, bool IsSelected);
+
+public sealed class PartItemViewModel : INotifyPropertyChanged
+{
+    private bool isVisible = true;
+    private int zOrder;
+
+    public Guid Id { get; }
+    public string Name { get; }
+    public string TexturePath { get; }
+    public ImageSource? Image { get; }
+    public float Width { get; }
+    public float Height { get; }
+    public float CenterX { get; }
+    public float CenterY { get; }
+
+    public int ZOrder
+    {
+        get => zOrder;
+        set { zOrder = value; OnPropertyChanged(); }
+    }
+
+    public bool IsVisible
+    {
+        get => isVisible;
+        set { isVisible = value; OnPropertyChanged(); }
+    }
+
+    public PartItemViewModel(Guid id, string name, string texturePath, ImageSource? image, float width, float height, float centerX, float centerY, int zOrder)
+    {
+        Id = id;
+        Name = name;
+        TexturePath = texturePath;
+        Image = image;
+        Width = width;
+        Height = height;
+        CenterX = centerX;
+        CenterY = centerY;
+        ZOrder = zOrder;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
 public sealed record KeyframeViewModel(TimeSpan Time, double Frame, BezierEasing Easing);
 
 public sealed class RigEditorViewModel : INotifyPropertyChanged
@@ -39,6 +85,7 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
     private readonly RigEditorSession session;
     private readonly string? documentPath;
     private BoneNodeViewModel? selectedBone;
+    private PartItemViewModel? selectedPart;
     private string status = "Ready";
     private EditorBackgroundMode backgroundMode;
     private EditorTransformTool activeTool;
@@ -51,17 +98,26 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
     private double currentFrame;
     private bool autoKeyEnabled = true;
 
+    private readonly Dictionary<string, ImageSource> imageCache = new(StringComparer.OrdinalIgnoreCase);
+
     public RigEditorViewModel(RigEditorSession session, string? documentPath = null)
     {
         this.session = session;
         this.documentPath = documentPath;
         session.Changed += OnRigChanged;
+
         UndoCommand = new RelayCommand(Undo, () => session.CanUndo);
         RedoCommand = new RelayCommand(Redo, () => session.CanRedo);
+        AddBoneCommand = new RelayCommand(AddSingleBone);
         AddChainCommand = new RelayCommand(AddChain);
         AddEightLegsCommand = new RelayCommand(AddEightLegs, () => SelectedBone is not null);
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => !string.IsNullOrWhiteSpace(this.documentPath));
         BackupCommand = new AsyncRelayCommand(BackupAsync, () => !string.IsNullOrWhiteSpace(this.documentPath));
+
+        MovePartUpCommand = new RelayCommand(MovePartUp, () => SelectedPart is not null);
+        MovePartDownCommand = new RelayCommand(MovePartDown, () => SelectedPart is not null);
+        TogglePartVisibilityCommand = new RelayCommand(TogglePartVisibility, () => SelectedPart is not null);
+
         RefreshMotions();
         Refresh();
     }
@@ -70,15 +126,21 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
 
     public ObservableCollection<BoneNodeViewModel> Bones { get; } = [];
     public ObservableCollection<BoneVisualViewModel> BoneVisuals { get; } = [];
+    public ObservableCollection<PartItemViewModel> Parts { get; } = [];
     public ObservableCollection<string> Motions { get; } = [];
     public ObservableCollection<KeyframeViewModel> Keyframes { get; } = [];
 
     public ICommand UndoCommand { get; }
     public ICommand RedoCommand { get; }
+    public ICommand AddBoneCommand { get; }
     public ICommand AddChainCommand { get; }
     public ICommand AddEightLegsCommand { get; }
     public ICommand SaveCommand { get; }
     public ICommand BackupCommand { get; }
+
+    public ICommand MovePartUpCommand { get; }
+    public ICommand MovePartDownCommand { get; }
+    public ICommand TogglePartVisibilityCommand { get; }
 
     public string RigName => session.Rig.Name;
     public bool IsDirty => session.IsDirty;
@@ -94,6 +156,18 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             RefreshVisuals();
             RefreshKeyframes();
+            NotifyCommands();
+        }
+    }
+
+    public PartItemViewModel? SelectedPart
+    {
+        get => selectedPart;
+        set
+        {
+            if (Equals(selectedPart, value)) return;
+            selectedPart = value;
+            OnPropertyChanged();
             NotifyCommands();
         }
     }
@@ -187,10 +261,7 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
         SaveSelectedMotion();
     }
 
-    public void ImportDirectory(string directory)
-    {
-        ImportFileOrDirectory(directory);
-    }
+    public void ImportDirectory(string directory) => ImportFileOrDirectory(directory);
 
     public void ImportFileOrDirectory(string path)
     {
@@ -234,6 +305,24 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
         }));
     }
 
+    private void AddSingleBone()
+    {
+        var parentId = SelectedBone?.Id ?? session.Rig.Bones.FirstOrDefault()?.Id;
+        var parent = session.Rig.Bones.FirstOrDefault(x => x.Id == parentId);
+        var count = session.Rig.Bones.Count;
+        var newBone = new BoneDefinition
+        {
+            Id = Guid.NewGuid(),
+            ParentId = parentId,
+            Name = $"Bone_{count}",
+            RetargetTag = $"Bone_{count}",
+            Translation = parent is null ? Vector2.Zero : new Vector2(parent.Length, 0),
+            Length = 50,
+        };
+        session.Apply("Add single bone", rig => RigOperations.AddBones(rig, [newBone]));
+        SelectedBone = Bones.FirstOrDefault(x => x.Id == newBone.Id);
+    }
+
     private void AddChain()
     {
         var parent = SelectedBone?.Id;
@@ -248,6 +337,42 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
     {
         var bones = BoneArrayGenerator.CreateRadialLimbs(SelectedBone!.Id, 8, 3, 35, 20, "Leg");
         session.Apply("Add eight radial legs", rig => RigOperations.AddBones(rig, bones));
+    }
+
+    private void MovePartUp()
+    {
+        if (SelectedPart is null) return;
+        var targetPartId = SelectedPart.Id;
+        session.Apply("Move part forward", rig =>
+        {
+            var part = rig.Parts.FirstOrDefault(x => x.Id == targetPartId);
+            if (part is null) return rig;
+            return rig with
+            {
+                Parts = rig.Parts.Select(p => p.Id == targetPartId ? p with { ZOrder = p.ZOrder + 1 } : p).ToArray()
+            };
+        });
+    }
+
+    private void MovePartDown()
+    {
+        if (SelectedPart is null) return;
+        var targetPartId = SelectedPart.Id;
+        session.Apply("Move part backward", rig =>
+        {
+            var part = rig.Parts.FirstOrDefault(x => x.Id == targetPartId);
+            if (part is null) return rig;
+            return rig with
+            {
+                Parts = rig.Parts.Select(p => p.Id == targetPartId ? p with { ZOrder = p.ZOrder - 1 } : p).ToArray()
+            };
+        });
+    }
+
+    private void TogglePartVisibility()
+    {
+        if (SelectedPart is null) return;
+        SelectedPart.IsVisible = !SelectedPart.IsVisible;
     }
 
     private void Undo() => session.Undo();
@@ -331,16 +456,72 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
 
     private void Refresh()
     {
-        var selectedId = SelectedBone?.Id;
+        var selectedBoneId = SelectedBone?.Id;
+        var selectedPartId = SelectedPart?.Id;
+
         Bones.Clear();
         foreach (var bone in session.Rig.Bones)
             Bones.Add(new BoneNodeViewModel(bone.Id, bone.Name, bone.RetargetTag));
-        selectedBone = Bones.FirstOrDefault(x => x.Id == selectedId);
+        selectedBone = Bones.FirstOrDefault(x => x.Id == selectedBoneId);
+
+        RefreshParts();
+        selectedPart = Parts.FirstOrDefault(x => x.Id == selectedPartId);
+
         OnPropertyChanged(nameof(SelectedBone));
+        OnPropertyChanged(nameof(SelectedPart));
         OnPropertyChanged(nameof(RigName));
         OnPropertyChanged(nameof(IsDirty));
         RefreshVisuals();
         NotifyCommands();
+    }
+
+    private void RefreshParts()
+    {
+        Parts.Clear();
+        var docDir = documentPath is null ? null : Path.GetDirectoryName(documentPath);
+        foreach (var part in session.Rig.Parts.OrderBy(x => x.ZOrder))
+        {
+            ImageSource? img = null;
+            if (!string.IsNullOrWhiteSpace(docDir) && !string.IsNullOrWhiteSpace(part.TexturePath))
+            {
+                var fullPath = Path.IsPathRooted(part.TexturePath) ? part.TexturePath : Path.Combine(docDir, part.TexturePath);
+                if (File.Exists(fullPath))
+                {
+                    img = LoadImage(fullPath);
+                }
+            }
+
+            var minX = part.Vertices.Select(v => v.Position.X).Min();
+            var maxX = part.Vertices.Select(v => v.Position.X).Max();
+            var minY = part.Vertices.Select(v => v.Position.Y).Min();
+            var maxY = part.Vertices.Select(v => v.Position.Y).Max();
+            var w = MathF.Max(1, maxX - minX);
+            var h = MathF.Max(1, maxY - minY);
+            var cx = (minX + maxX) * 0.5f;
+            var cy = (minY + maxY) * 0.5f;
+
+            Parts.Add(new PartItemViewModel(part.Id, part.Name, part.TexturePath, img, w, h, cx, cy, part.ZOrder));
+        }
+    }
+
+    private ImageSource? LoadImage(string path)
+    {
+        if (imageCache.TryGetValue(path, out var cached)) return cached;
+        try
+        {
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.UriSource = new Uri(path, UriKind.Absolute);
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            imageCache[path] = bitmap;
+            return bitmap;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private void RefreshVisuals()
@@ -364,6 +545,9 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
         ((RelayCommand)AddEightLegsCommand).RaiseCanExecuteChanged();
         ((AsyncRelayCommand)SaveCommand).RaiseCanExecuteChanged();
         ((AsyncRelayCommand)BackupCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)MovePartUpCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)MovePartDownCommand).RaiseCanExecuteChanged();
+        ((RelayCommand)TogglePartVisibilityCommand).RaiseCanExecuteChanged();
     }
 
     private void OnPropertyChanged([CallerMemberName] string? name = null) =>

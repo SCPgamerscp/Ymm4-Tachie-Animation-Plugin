@@ -10,7 +10,7 @@
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <Style TargetType="Button">
             <Setter Property="Margin" Value="3" />
-            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="Padding" Value="10,5" />
             <Setter Property="Background" Value="#303640" />
             <Setter Property="Foreground" Value="#F1F3F4" />
             <Setter Property="BorderBrush" Value="#4A5260" />
@@ -54,6 +54,7 @@
                     <Button Content="元に戻す" Command="{Binding UndoCommand}" />
                     <Button Content="やり直す" Command="{Binding RedoCommand}" />
                     <Separator Margin="6,2" />
+                    <Button Content="+ ボーン追加" Command="{Binding AddBoneCommand}" Background="#2B6CB0" />
                     <Button Content="4節チェーン追加" Command="{Binding AddChainCommand}" />
                     <Button Content="8脚生成" Command="{Binding AddEightLegsCommand}" />
                     <Button Content="PSD取込" Click="ImportPsdFile_Click" />
@@ -79,26 +80,49 @@
 
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="230" />
+                <ColumnDefinition Width="260" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="270" />
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0" Padding="8">
-                <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Text="ボーン階層" FontWeight="SemiBold" FontSize="15" Margin="4,4,4,10" />
-                    <ListBox ItemsSource="{Binding Bones}" SelectedItem="{Binding SelectedBone}" Background="#191C21" BorderBrush="#343942">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel Margin="4">
-                                    <TextBlock Text="{Binding Name}" />
-                                    <TextBlock Text="{Binding Tag}" Foreground="#8992A2" FontSize="10" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </DockPanel>
-            </Border>
+            <TabControl Grid.Column="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+                <TabItem Header="ボーン階層" Foreground="#E8EAED">
+                    <DockPanel Margin="8">
+                        <ListBox ItemsSource="{Binding Bones}" SelectedItem="{Binding SelectedBone}" Background="#191C21" BorderBrush="#343942">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="4">
+                                        <TextBlock Text="{Binding Name}" FontWeight="Bold" />
+                                        <TextBlock Text="{Binding Tag}" Foreground="#8992A2" FontSize="10" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                </TabItem>
+                <TabItem Header="パーツ・重ね順 (Z)" Foreground="#E8EAED">
+                    <DockPanel Margin="8">
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
+                            <Button Content="▲ 手前へ" Command="{Binding MovePartUpCommand}" Padding="6,2" Margin="2" />
+                            <Button Content="▼ 奥へ" Command="{Binding MovePartDownCommand}" Padding="6,2" Margin="2" />
+                            <Button Content="👁️ 表示切替" Command="{Binding TogglePartVisibilityCommand}" Padding="6,2" Margin="2" />
+                        </StackPanel>
+                        <ListBox ItemsSource="{Binding Parts}" SelectedItem="{Binding SelectedPart}" Background="#191C21" BorderBrush="#343942">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="4">
+                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontWeight="Bold" />
+                                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                                            <TextBlock Text="{Binding ZOrder, StringFormat={}Z:{0}}" Foreground="#A0AEC0" VerticalAlignment="Center" Margin="6,0" />
+                                            <CheckBox IsChecked="{Binding IsVisible}" VerticalAlignment="Center" ToolTip="表示 / 非表示" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                </TabItem>
+            </TabControl>
 
             <Border x:Name="EditorSurface" Grid.Column="1" Background="{StaticResource CheckerBrush}" ClipToBounds="True"
                     AllowDrop="True" Drop="EditorSurface_Drop"
@@ -107,6 +131,29 @@
                     MouseMove="EditorSurface_MouseMove">
                 <Grid>
                     <TextBlock Text="{Binding RigName}" Margin="12" Foreground="#9FA8B8" FontSize="15" />
+
+                    <!-- Parts (Textures) Layer -->
+                    <ItemsControl ItemsSource="{Binding Parts}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><Canvas Width="900" Height="600" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Canvas>
+                                    <Image Source="{Binding Image}" 
+                                           Width="{Binding Width}" 
+                                           Height="{Binding Height}" 
+                                           Visibility="{Binding IsVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <Image.RenderTransform>
+                                            <TranslateTransform X="{Binding CenterX}" Y="{Binding CenterY}" />
+                                        </Image.RenderTransform>
+                                    </Image>
+                                </Canvas>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Bone Visual Overlay Layer -->
                     <ItemsControl ItemsSource="{Binding BoneVisuals}" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate><Canvas Width="900" Height="600" /></ItemsPanelTemplate>
@@ -143,6 +190,7 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+
                     <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="12" Padding="8,4"
                             Background="#B0202329" CornerRadius="4">
                         <TextBlock Text="W:移動  E:回転  R:拡縮  S:キー打刻" Foreground="#B8C0CC" />
