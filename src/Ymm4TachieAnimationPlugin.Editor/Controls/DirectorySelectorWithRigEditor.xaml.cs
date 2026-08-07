@@ -43,12 +43,13 @@ public partial class DirectorySelectorWithRigEditor : UserControl
     private void OnOpenRigEditorClicked(object sender, RoutedEventArgs e)
     {
         var path = Value;
-        if (string.IsNullOrWhiteSpace(path))
+        if (string.IsNullOrWhiteSpace(path) && DataContext != null)
         {
-            if (DataContext is YukkuriMovieMaker.Commons.ItemProperty itemProp && itemProp.Item != null)
+            var itemProp = DataContext.GetType().GetProperty("Item")?.GetValue(DataContext);
+            if (itemProp != null)
             {
-                var psdProp = itemProp.Item.GetType().GetProperty("PsdFilePath");
-                if (psdProp?.GetValue(itemProp.Item) is string psdPath && !string.IsNullOrWhiteSpace(psdPath))
+                var psdProp = itemProp.GetType().GetProperty("PsdFilePath");
+                if (psdProp?.GetValue(itemProp) is string psdPath && !string.IsNullOrWhiteSpace(psdPath))
                 {
                     path = psdPath;
                 }
