@@ -11,6 +11,7 @@ namespace Ymm4TachieAnimationPlugin.Editor.Views;
 public partial class RigEditorWindow : Window
 {
     private Point? previousPointer;
+    private Point? previousPanPointer;
 
     public RigEditorWindow(RigDefinition rig, string? documentPath = null)
     {
@@ -66,6 +67,30 @@ public partial class RigEditorWindow : Window
     private void ScaleTool_Click(object sender, RoutedEventArgs e) => ViewModel.ActiveTool = EditorTransformTool.Scale;
     private void IkTool_Click(object sender, RoutedEventArgs e) => ViewModel.ActiveTool = EditorTransformTool.Ik;
 
+    private void EditorSurface_MouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        var factor = e.Delta > 0 ? 1.15 : 1.0 / 1.15;
+        ViewModel.ZoomLevel *= factor;
+    }
+
+    private void EditorSurface_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == MouseButton.Middle)
+        {
+            previousPanPointer = e.GetPosition(EditorSurface);
+            EditorSurface.CaptureMouse();
+        }
+    }
+
+    private void EditorSurface_MouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == MouseButton.Middle)
+        {
+            previousPanPointer = null;
+            EditorSurface.ReleaseMouseCapture();
+        }
+    }
+
     private void EditorSurface_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         previousPointer = e.GetPosition(EditorSurface);
@@ -74,10 +99,21 @@ public partial class RigEditorWindow : Window
 
     private void EditorSurface_MouseMove(object sender, MouseEventArgs e)
     {
-        if (previousPointer is not { } previous || e.LeftButton != MouseButtonState.Pressed) return;
         var current = e.GetPosition(EditorSurface);
-        ViewModel.ApplyPointerDelta(new Vector2((float)(current.X - previous.X), (float)(current.Y - previous.Y)));
-        previousPointer = current;
+
+        if (previousPanPointer is { } panPrev && e.MiddleButton == MouseButtonState.Pressed)
+        {
+            ViewModel.PanX += current.X - panPrev.X;
+            ViewModel.PanY += current.Y - panPrev.Y;
+            previousPanPointer = current;
+            return;
+        }
+
+        if (previousPointer is { } previous && e.LeftButton == MouseButtonState.Pressed)
+        {
+            ViewModel.ApplyPointerDelta(new Vector2((float)(current.X - previous.X), (float)(current.Y - previous.Y)));
+            previousPointer = current;
+        }
     }
 
     private void EditorSurface_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)

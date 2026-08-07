@@ -126,74 +126,93 @@
 
             <Border x:Name="EditorSurface" Grid.Column="1" Background="{StaticResource CheckerBrush}" ClipToBounds="True"
                     AllowDrop="True" Drop="EditorSurface_Drop"
+                    MouseWheel="EditorSurface_MouseWheel"
                     MouseLeftButtonDown="EditorSurface_MouseLeftButtonDown"
                     MouseLeftButtonUp="EditorSurface_MouseLeftButtonUp"
-                    MouseMove="EditorSurface_MouseMove">
+                    MouseMove="EditorSurface_MouseMove"
+                    MouseDown="EditorSurface_MouseDown"
+                    MouseUp="EditorSurface_MouseUp">
                 <Grid>
                     <TextBlock Text="{Binding RigName}" Margin="12" Foreground="#9FA8B8" FontSize="15" />
 
-                    <!-- Parts (Textures) Layer -->
-                    <ItemsControl ItemsSource="{Binding Parts}" HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate><Canvas Width="900" Height="600" /></ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Canvas>
-                                    <Image Source="{Binding Image}" 
-                                           Width="{Binding Width}" 
-                                           Height="{Binding Height}" 
-                                           Visibility="{Binding IsVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <Image.RenderTransform>
-                                            <TranslateTransform X="{Binding CenterX}" Y="{Binding CenterY}" />
-                                        </Image.RenderTransform>
-                                    </Image>
-                                </Canvas>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <!-- Canvas Viewport Root with Zoom & Pan Transforms -->
+                    <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Grid.LayoutTransform>
+                            <TransformGroup>
+                                <ScaleTransform ScaleX="{Binding ZoomLevel}" ScaleY="{Binding ZoomLevel}" />
+                                <TranslateTransform X="{Binding PanX}" Y="{Binding PanY}" />
+                            </TransformGroup>
+                        </Grid.LayoutTransform>
 
-                    <!-- Bone Visual Overlay Layer -->
-                    <ItemsControl ItemsSource="{Binding BoneVisuals}" HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate><Canvas Width="900" Height="600" /></ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Canvas>
-                                    <Line X1="{Binding X1}" Y1="{Binding Y1}" X2="{Binding X2}" Y2="{Binding Y2}"
-                                          StrokeThickness="5" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
-                                        <Line.Style>
-                                            <Style TargetType="Line">
-                                                <Setter Property="Stroke" Value="#63B3ED" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                        <Setter Property="Stroke" Value="#F6C85F" />
-                                                        <Setter Property="StrokeThickness" Value="7" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Line.Style>
-                                        <Line.RenderTransform>
-                                            <TranslateTransform X="450" Y="300" />
-                                        </Line.RenderTransform>
-                                    </Line>
-                                    <Ellipse Width="10" Height="10" Fill="#F5F7FA"
-                                             Canvas.Left="{Binding X1}" Canvas.Top="{Binding Y1}">
-                                        <Ellipse.RenderTransform>
-                                            <TransformGroup>
-                                                <TranslateTransform X="445" Y="295" />
-                                            </TransformGroup>
-                                        </Ellipse.RenderTransform>
-                                    </Ellipse>
-                                </Canvas>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                        <!-- Parts (Textures) Layer -->
+                        <ItemsControl ItemsSource="{Binding Parts}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><Canvas Width="900" Height="600" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Canvas>
+                                        <Image Source="{Binding Image}" 
+                                               Width="{Binding Width}" 
+                                               Height="{Binding Height}" 
+                                               Visibility="{Binding IsVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Image.RenderTransform>
+                                                <TranslateTransform X="{Binding CenterX}" Y="{Binding CenterY}" />
+                                            </Image.RenderTransform>
+                                        </Image>
+                                    </Canvas>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
 
+                        <!-- Bone Visual Overlay Layer -->
+                        <ItemsControl ItemsSource="{Binding BoneVisuals}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><Canvas Width="900" Height="600" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Canvas>
+                                        <Line X1="{Binding X1}" Y1="{Binding Y1}" X2="{Binding X2}" Y2="{Binding Y2}"
+                                              StrokeThickness="5" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                                            <Line.Style>
+                                                <Style TargetType="Line">
+                                                    <Setter Property="Stroke" Value="#63B3ED" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                            <Setter Property="Stroke" Value="#F6C85F" />
+                                                            <Setter Property="StrokeThickness" Value="7" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Line.Style>
+                                            <Line.RenderTransform>
+                                                <TranslateTransform X="450" Y="300" />
+                                            </Line.RenderTransform>
+                                        </Line>
+                                        <Ellipse Width="10" Height="10" Fill="#F5F7FA"
+                                                 Canvas.Left="{Binding X1}" Canvas.Top="{Binding Y1}">
+                                            <Ellipse.RenderTransform>
+                                                <TransformGroup>
+                                                    <TranslateTransform X="445" Y="295" />
+                                                </TransformGroup>
+                                            </Ellipse.RenderTransform>
+                                        </Ellipse>
+                                    </Canvas>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+
+                    <!-- Interactive Zoom Control Overlay -->
                     <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="12" Padding="8,4"
-                            Background="#B0202329" CornerRadius="4">
-                        <TextBlock Text="W:移動  E:回転  R:拡縮  S:キー打刻" Foreground="#B8C0CC" />
+                            Background="#D0202329" CornerRadius="6">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="W:移動 E:回転 R:拡縮 | 🔍ホイール:拡大縮小" Foreground="#B8C0CC" VerticalAlignment="Center" Margin="0,0,12,0" />
+                            <Button Content="-" Command="{Binding ZoomOutCommand}" Width="28" Padding="2" Margin="2,0" ToolTip="縮小" />
+                            <Button Content="{Binding ZoomPercentage}" Command="{Binding ResetZoomCommand}" Padding="8,2" Margin="2,0" ToolTip="拡大率を100%にリセット" />
+                            <Button Content="+" Command="{Binding ZoomInCommand}" Width="28" Padding="2" Margin="2,0" ToolTip="拡大" />
+                        </StackPanel>
                     </Border>
                 </Grid>
             </Border>

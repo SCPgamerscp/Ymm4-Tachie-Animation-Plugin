@@ -106,6 +106,10 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
         this.documentPath = documentPath;
         session.Changed += OnRigChanged;
 
+        ZoomInCommand = new RelayCommand(() => ZoomLevel *= 1.25);
+        ZoomOutCommand = new RelayCommand(() => ZoomLevel /= 1.25);
+        ResetZoomCommand = new RelayCommand(() => { ZoomLevel = 1.0; PanX = 0; PanY = 0; });
+
         UndoCommand = new RelayCommand(Undo, () => session.CanUndo);
         RedoCommand = new RelayCommand(Redo, () => session.CanRedo);
         AddBoneCommand = new RelayCommand(AddSingleBone);
@@ -129,6 +133,39 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
     public ObservableCollection<PartItemViewModel> Parts { get; } = [];
     public ObservableCollection<string> Motions { get; } = [];
     public ObservableCollection<KeyframeViewModel> Keyframes { get; } = [];
+
+    private double zoomLevel = 1.0;
+    private double panX = 0;
+    private double panY = 0;
+
+    public double ZoomLevel
+    {
+        get => zoomLevel;
+        set
+        {
+            zoomLevel = Math.Clamp(value, 0.1, 10.0);
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ZoomPercentage));
+        }
+    }
+
+    public double PanX
+    {
+        get => panX;
+        set { panX = value; OnPropertyChanged(); }
+    }
+
+    public double PanY
+    {
+        get => panY;
+        set { panY = value; OnPropertyChanged(); }
+    }
+
+    public string ZoomPercentage => $"{Math.Round(ZoomLevel * 100)}%";
+
+    public ICommand ZoomInCommand { get; }
+    public ICommand ZoomOutCommand { get; }
+    public ICommand ResetZoomCommand { get; }
 
     public ICommand UndoCommand { get; }
     public ICommand RedoCommand { get; }
@@ -273,6 +310,7 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
     public void ApplyPointerDelta(Vector2 delta)
     {
         if (SelectedBone is null || delta.LengthSquared() < 0.0001f) return;
+        var scaledDelta = delta / (float)Math.Max(0.01, ZoomLevel);
         var id = SelectedBone.Id;
         session.Apply($"{ActiveTool} bone", rig => RigOperations.UpdateBone(rig, id, bone =>
         {
@@ -286,19 +324,19 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
             {
                 EditorTransformTool.Translate => bone with
                 {
-                    Translation = SnapEngine.SnapPoint(bone.Translation + delta, settings).Value,
+                    Translation = SnapEngine.SnapPoint(bone.Translation + scaledDelta, settings).Value,
                 },
                 EditorTransformTool.Rotate => bone with
                 {
-                    Rotation = SnapEngine.SnapAngle(bone.Rotation + delta.X * 0.01f, settings),
+                    Rotation = SnapEngine.SnapAngle(bone.Rotation + scaledDelta.X * 0.01f, settings),
                 },
                 EditorTransformTool.Scale => bone with
                 {
-                    Scale = Vector2.Max(new Vector2(0.01f), bone.Scale + new Vector2(delta.X, -delta.Y) * 0.01f),
+                    Scale = Vector2.Max(new Vector2(0.01f), bone.Scale + new Vector2(scaledDelta.X, -scaledDelta.Y) * 0.01f),
                 },
                 EditorTransformTool.Ik => bone with
                 {
-                    Translation = SnapEngine.SnapPoint(bone.Translation + delta, settings).Value,
+                    Translation = SnapEngine.SnapPoint(bone.Translation + scaledDelta, settings).Value,
                 },
                 _ => bone,
             };
