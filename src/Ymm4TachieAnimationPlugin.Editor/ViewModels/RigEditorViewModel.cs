@@ -32,13 +32,14 @@ public enum EditorTransformTool
     Ik,
 }
 
-public sealed record BoneNodeViewModel(Guid Id, string Name, string? Tag);
+public sealed record BoneNodeViewModel(Guid Id, string Name, string? Tag, float Length);
 public sealed record BoneVisualViewModel(Guid Id, float X1, float Y1, float X2, float Y2, bool IsSelected);
 
 public sealed class PartItemViewModel : INotifyPropertyChanged
 {
     private bool isVisible = true;
     private int zOrder;
+    private readonly Action<Guid, bool>? onVisibilityChanged;
 
     public Guid Id { get; }
     public string Name { get; }
@@ -58,10 +59,16 @@ public sealed class PartItemViewModel : INotifyPropertyChanged
     public bool IsVisible
     {
         get => isVisible;
-        set { isVisible = value; OnPropertyChanged(); }
+        set
+        {
+            if (isVisible == value) return;
+            isVisible = value;
+            OnPropertyChanged();
+            onVisibilityChanged?.Invoke(Id, value);
+        }
     }
 
-    public PartItemViewModel(Guid id, string name, string texturePath, ImageSource? image, float width, float height, float centerX, float centerY, int zOrder)
+    public PartItemViewModel(Guid id, string name, string texturePath, ImageSource? image, float width, float height, float centerX, float centerY, int zOrder, bool isVisible = true, Action<Guid, bool>? onVisibilityChanged = null)
     {
         Id = id;
         Name = name;
@@ -72,6 +79,8 @@ public sealed class PartItemViewModel : INotifyPropertyChanged
         CenterX = centerX;
         CenterY = centerY;
         ZOrder = zOrder;
+        this.isVisible = isVisible;
+        this.onVisibilityChanged = onVisibilityChanged;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -182,6 +191,34 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
     public string RigName => session.Rig.Name;
     public bool IsDirty => session.IsDirty;
 
+    private int newChainCount = 4;
+    private float newChainLength = 40f;
+    private readonly Dictionary<Guid, bool> visibilityStateMap = [];
+
+    public int NewChainCount
+    {
+        get => newChainCount;
+        set { newChainCount = Math.Clamp(value, 1, 30); OnPropertyChanged(); }
+    }
+
+    public float NewChainLength
+    {
+        get => newChainLength;
+        set { newChainLength = Math.Clamp(value, 5f, 500f); OnPropertyChanged(); }
+    }
+
+    public float SelectedBoneLength
+    {
+        get => SelectedBone?.Length ?? 0f;
+        set
+        {
+            if (SelectedBone is null || MathF.Abs(SelectedBone.Length - value) < 0.01f) return;
+            var boneId = SelectedBone.Id;
+            var newLength = MathF.Max(1f, value);
+            session.Apply("Change bone length", rig => RigOperations.UpdateBone(rig, boneId, b => b with { Length = newLength }));
+        }
+    }
+
     public BoneNodeViewModel? SelectedBone
     {
         get => selectedBone;
@@ -191,6 +228,7 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
             selectedBone = value;
             session.SelectedBoneId = value?.Id;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectedBoneLength));
             RefreshVisuals();
             RefreshKeyframes();
             NotifyCommands();
@@ -367,8 +405,10 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
         var origin = parent is { } id
             ? new Vector2(session.Rig.Bones.Single(x => x.Id == id).Length, 0)
             : Vector2.Zero;
-        var bones = BoneArrayGenerator.CreateChain(4, 40, "Chain", origin, parentId: parent, tagPrefix: "Chain");
-        session.Apply("Add four-bone chain", rig => RigOperations.AddBones(rig, bones));
+        var count = NewChainCount;
+        var len = NewChainLength;
+        var bones = BoneArrayGenerator.CreateChain(count, len, "Chain", origin, parentId: parent, tagPrefix: "Chain");
+        session.Apply($"Add {count}-bone chain", rig => RigOperations.AddBones(rig, bones));
     }
 
     private void AddEightLegs()
@@ -499,13 +539,14 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
 
         Bones.Clear();
         foreach (var bone in session.Rig.Bones)
-            Bones.Add(new BoneNodeViewModel(bone.Id, bone.Name, bone.RetargetTag));
+            Bones.Add(new BoneNodeViewModel(bone.Id, bone.Name, bone.RetargetTag, bone.Length));
         selectedBone = Bones.FirstOrDefault(x => x.Id == selectedBoneId);
 
         RefreshParts();
         selectedPart = Parts.FirstOrDefault(x => x.Id == selectedPartId);
 
         OnPropertyChanged(nameof(SelectedBone));
+        OnPropertyChanged(nameof(SelectedBoneLength));
         OnPropertyChanged(nameof(SelectedPart));
         OnPropertyChanged(nameof(RigName));
         OnPropertyChanged(nameof(IsDirty));
@@ -540,8 +581,16 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
             var canvasLeft = 450f + minX;
             var canvasTop = 300f - maxY;
 
-            Parts.Add(new PartItemViewModel(part.Id, part.Name, part.TexturePath, img, w, h, canvasLeft, canvasTop, part.ZOrder));
+            var isVisible = visibilityStateMap.TryGetValue(part.Id, out var vis) ? vis : true;
+            visibilityStateMap[part.Id] = isVisible;
+
+            Parts.Add(new PartItemViewModel(part.Id, part.Name, part.TexturePath, img, w, h, canvasLeft, canvasTop, part.ZOrder, isVisible, OnPartVisibilityChanged));
         }
+    }
+
+    private void OnPartVisibilityChanged(Guid partId, bool isVisible)
+    {
+        visibilityStateMap[partId] = isVisible;
     }
 
     private ImageSource? LoadImage(string path)

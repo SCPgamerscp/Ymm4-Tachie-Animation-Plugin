@@ -55,7 +55,7 @@
                     <Button Content="やり直す" Command="{Binding RedoCommand}" />
                     <Separator Margin="6,2" />
                     <Button Content="+ ボーン追加" Command="{Binding AddBoneCommand}" Background="#2B6CB0" />
-                    <Button Content="4節チェーン追加" Command="{Binding AddChainCommand}" />
+                    <Button Content="+ チェーン追加" Command="{Binding AddChainCommand}" />
                     <Button Content="8脚生成" Command="{Binding AddEightLegsCommand}" />
                     <Button Content="PSD取込" Click="ImportPsdFile_Click" />
                     <Button Content="フォルダー取込" Click="ImportFolder_Click" />
@@ -225,6 +225,23 @@
                     <TextBox Text="{Binding SelectedBone.Name, Mode=OneWay}" Margin="0,4,0,12" Padding="6" IsReadOnly="True" />
                     <TextBlock Text="部位タグ" Foreground="#99A3B2" />
                     <TextBox Text="{Binding SelectedBone.Tag, Mode=OneWay}" Margin="0,4,0,12" Padding="6" IsReadOnly="True" />
+                    <TextBlock Text="ボーンの長さ (px)" Foreground="#99A3B2" />
+                    <DockPanel Margin="0,4,0,12">
+                        <TextBox Width="60" Text="{Binding SelectedBoneLength, UpdateSourceTrigger=PropertyChanged}" DockPanel.Dock="Right" Padding="4,2" Margin="6,0,0,0" />
+                        <Slider Minimum="1" Maximum="300" Value="{Binding SelectedBoneLength}" VerticalAlignment="Center" TickFrequency="1" IsSnapToTickEnabled="True" />
+                    </DockPanel>
+
+                    <Separator Margin="0,8" />
+                    <TextBlock Text="チェーン自動追加設定" FontWeight="SemiBold" Foreground="#63B3ED" Margin="0,0,0,8" />
+                    <DockPanel Margin="0,2,0,8">
+                        <TextBlock Text="追加本数" Foreground="#99A3B2" VerticalAlignment="Center" />
+                        <TextBox Width="50" Text="{Binding NewChainCount, UpdateSourceTrigger=PropertyChanged}" DockPanel.Dock="Right" Padding="4,2" />
+                    </DockPanel>
+                    <DockPanel Margin="0,2,0,12">
+                        <TextBlock Text="1本の長さ" Foreground="#99A3B2" VerticalAlignment="Center" />
+                        <TextBox Width="50" Text="{Binding NewChainLength, UpdateSourceTrigger=PropertyChanged}" DockPanel.Dock="Right" Padding="4,2" />
+                    </DockPanel>
+
                     <Separator Margin="0,8" />
                     <CheckBox Content="グリッドスナップ" IsChecked="{Binding GridSnapEnabled}" Margin="0,8" />
                     <CheckBox Content="15°角度スナップ" IsChecked="{Binding AngleSnapEnabled}" Margin="0,8" />
