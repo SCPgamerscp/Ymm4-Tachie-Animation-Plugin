@@ -17,7 +17,7 @@ internal sealed class BoneCharacterParameter : TachieCharacterParameterBase
     private string? directoryPath;
 
     [Display(Name = "PSDファイル", Description = "PSDファイルを直接指定する場合はこちら。指定した場合はリグフォルダーより優先され、自動でリグに変換されます。")]
-    [FileSelectorWithRigEditor]
+    [FileSelector(FileGroupType.TachieParts, CustomFilterName = "PSDファイル", CustomFilterValue = "*.psd;*.psb")]
     public string? PsdFilePath
     {
         get => psdFilePath;
