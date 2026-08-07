@@ -535,10 +535,12 @@ public sealed class RigEditorViewModel : INotifyPropertyChanged
             var maxY = part.Vertices.Select(v => v.Position.Y).Max();
             var w = MathF.Max(1, maxX - minX);
             var h = MathF.Max(1, maxY - minY);
-            var cx = (minX + maxX) * 0.5f;
-            var cy = (minY + maxY) * 0.5f;
 
-            Parts.Add(new PartItemViewModel(part.Id, part.Name, part.TexturePath, img, w, h, cx, cy, part.ZOrder));
+            // Preserving exact PSD offset relative to Canvas center (450, 300)
+            var canvasLeft = 450f + minX;
+            var canvasTop = 300f - maxY;
+
+            Parts.Add(new PartItemViewModel(part.Id, part.Name, part.TexturePath, img, w, h, canvasLeft, canvasTop, part.ZOrder));
         }
     }
 

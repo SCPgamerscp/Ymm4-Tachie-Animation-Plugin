@@ -155,11 +155,9 @@
                                         <Image Source="{Binding Image}" 
                                                Width="{Binding Width}" 
                                                Height="{Binding Height}" 
-                                               Visibility="{Binding IsVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <Image.RenderTransform>
-                                                <TranslateTransform X="{Binding CenterX}" Y="{Binding CenterY}" />
-                                            </Image.RenderTransform>
-                                        </Image>
+                                               Canvas.Left="{Binding CenterX}"
+                                               Canvas.Top="{Binding CenterY}"
+                                               Visibility="{Binding IsVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                     </Canvas>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
