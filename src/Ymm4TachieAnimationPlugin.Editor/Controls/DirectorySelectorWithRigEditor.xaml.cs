@@ -45,6 +45,18 @@ public partial class DirectorySelectorWithRigEditor : UserControl
         var path = Value;
         if (string.IsNullOrWhiteSpace(path))
         {
+            if (DataContext is YukkuriMovieMaker.Commons.ItemProperty itemProp && itemProp.Item != null)
+            {
+                var psdProp = itemProp.Item.GetType().GetProperty("PsdFilePath");
+                if (psdProp?.GetValue(itemProp.Item) is string psdPath && !string.IsNullOrWhiteSpace(psdPath))
+                {
+                    path = psdPath;
+                }
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
             MessageBox.Show("リグフォルダーまたはPSDファイルが指定されていません。", "案内", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
